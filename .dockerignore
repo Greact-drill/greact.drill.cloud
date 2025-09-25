@@ -1,0 +1,39 @@
+# Node modules
+node_modules
+npm-debug.log*
+
+# Build artifacts
+dist
+build
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# IDE files
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git
+.git
+.gitignore
+
+# Documentation
+README.md
+notion.md
+
+# Test files
+coverage
+*.test.js
+*.test.ts
+
+# Development files
+docker-compose.yml
+docker-compose.*.yml
