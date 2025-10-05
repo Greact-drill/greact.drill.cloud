@@ -15,10 +15,10 @@ RUN npm install
 COPY . .
 
 # Генерация Prisma клиента ?
-#RUN npm run prisma:generate
+RUN npm run prisma:generate
 
 # Добавим применение миграций в БД ?
-# RUN npm run migrate:deploy
+RUN npm run migrate:deploy
 
 # Собираем приложение
 RUN npm run build
