@@ -7,7 +7,7 @@ services:
     expose:
       - '3000'
     depends_on:
-      - cloud-database-container
+      - cloud-db-dev
     environment:
       - NODE_ENV=production
       - DATABASE_URL=${DATABASE_URL}
