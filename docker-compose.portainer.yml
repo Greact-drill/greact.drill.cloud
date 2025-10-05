@@ -1,5 +1,5 @@
 services:
-  cloud-api:
+  cloud-api-dev:
     build:
       context: .
       dockerfile: Dockerfile
@@ -7,15 +7,16 @@ services:
     expose:
       - '3000'
     depends_on:
-      - cloud-db
+      - cloud-database-container
     environment:
       - NODE_ENV=production
       - DATABASE_URL=${DATABASE_URL}
     networks:
       - proxy
 
-  cloud-db:
+  cloud-db-dev:
     image: postgres:17
+    container_name: cloud-database-container
     restart: always
     expose:
       - '5432'
@@ -29,7 +30,7 @@ services:
       - proxy      
 
 volumes:
-  cloud-db:
+  cloud-db-dev:
 
 networks:
   proxy:
