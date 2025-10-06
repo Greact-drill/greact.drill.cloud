@@ -19,6 +19,8 @@ RUN npm run prisma:generate
 # 4. Копируем исходный код приложения
 COPY . .
 
+ARG CURRENT_API_BASE_URL
+
 # 5. Собираем приложение (например, TypeScript -> JavaScript)
 RUN npm run build
 

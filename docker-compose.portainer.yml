@@ -3,6 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        - CURRENT_API_BASE_URL
     restart: always
     expose:
       - '3000'
