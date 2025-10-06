@@ -5,12 +5,7 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  app.enableCors({
-    origin: 'https://admin.drill.greact.ru', 
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-    allowedHeaders: 'Content-Type, Accept, Authorization',
-    credentials: true,
-  });
+  app.enableCors()
 
   // Включаем глобальную валидацию
   app.useGlobalPipes(new ValidationPipe({
