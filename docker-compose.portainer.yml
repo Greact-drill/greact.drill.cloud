@@ -1,35 +1,46 @@
 services:
-  cloud-api:
+  cloud-api-dev:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        - CURRENT_API_BASE_URL
     restart: always
     expose:
       - '3000'
     depends_on:
-      - cloud-db
+      cloud-db-dev:
+        condition: service_healthy
     environment:
       - NODE_ENV=production
       - DATABASE_URL=${DATABASE_URL}
+      - CURRENT_API_BASE_URL=${CURRENT_API_BASE_URL}
     networks:
       - proxy
 
-  cloud-db:
+  cloud-db-dev:
     image: postgres:17
+    container_name: cloud-database-container
     restart: always
     expose:
       - '5432'
     volumes:
-      - cloud-db:/var/lib/postgresql/data
+      - cloud-db-dev:/var/lib/postgresql/data
     environment:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB}
     networks:
-      - proxy      
+      - proxy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
 volumes:
-  cloud-db:
+  cloud-db-dev:
 
 networks:
   proxy:

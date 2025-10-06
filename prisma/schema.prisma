@@ -12,7 +12,13 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  // Добавляем схему frontend для таблиц кастомизации
+  schemas  = ["public", "frontend"]
 }
+
+// ------------------------------------
+// Public Schema (default)
+// ------------------------------------
 
 // История снятых показаний, собранных метрик
 model History {
@@ -23,6 +29,7 @@ model History {
   value     Float
   createdAt DateTime @default(now())
 
+  @@schema("public")
   @@index([edge])
   @@index([timestamp])
   @@index([tag])
@@ -40,8 +47,85 @@ model Current {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@schema("public")
   @@unique([edge, tag])
   @@index([edge])
   @@index([tag])
   @@map("current")
+}
+
+model edge {
+  id      String @id @db.VarChar(100)
+  name    String
+  blocks  block[] // Связь с таблицей block
+
+  @@schema("public")
+  @@index([name])
+  @@map("edge")
+}
+
+model block {
+  edge_id   String @db.VarChar(100)
+  id        String @id @db.VarChar(100)
+  name      String
+  edge      edge @relation(fields: [edge_id], references: [id])
+
+  @@schema("public")
+  @@index([edge_id,name])
+  @@index([edge_id])
+  @@index([name])
+  @@map("block")
+}
+
+model tag {
+  id                  String @id @db.VarChar(100)
+  name                String
+  min                 Int
+  max                 Int
+  comment             String
+  unit_of_measurement String
+
+  @@schema("public")
+  @@index([name])
+  @@map("tag")
+}
+
+// ------------------------------------
+// Frontend Schema
+// ------------------------------------
+
+model edge_customization {
+  id         Int @id @default(autoincrement())
+  edge_id    String @db.VarChar(100)
+  key        String
+  value      String
+
+  @@schema("frontend")
+  @@unique([edge_id, key])
+  @@index([edge_id])
+  @@map("edge_customization")
+}
+
+model block_customization {
+  id         Int @id @default(autoincrement())
+  block_id   String @db.VarChar(100)
+  key        String
+  value      String
+  
+  @@schema("frontend")
+  @@unique([block_id, key])
+  @@index([block_id])
+  @@map("block_customization")
+}
+
+model tag_customization {
+  id         Int @id @default(autoincrement())
+  edge_id    String @db.VarChar(100)
+  tag_id     String @db.VarChar(100)
+  key        String
+  value      String
+
+  @@schema("frontend")
+  @@unique([edge_id, tag_id, key])
+  @@map("tag_customization")
 }
