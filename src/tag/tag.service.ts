@@ -46,4 +46,24 @@ export class TagService {
       where: { id },
     })
   }
+
+  async upsertTagsFromApi(tagIds: string[]) {
+    const promises = tagIds.map(tagId => {
+      return this.prisma.tag.upsert({
+        where: { id: tagId },
+        update: {
+        },
+        create: {
+          id: tagId,
+          name: tagId,
+          min: 0,
+          max: 100,
+          comment: 'Auto-synced from current API',
+          unit_of_measurement: 'N/A', 
+        },
+      });
+    });
+
+    return Promise.all(promises);
+  }
 }

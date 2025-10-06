@@ -13,6 +13,7 @@ import { TagModule } from './tag/tag.module';
 import { EdgeCustomizationModule } from './edge_customization/edge_customization.module';
 import { BlockCustomizationModule } from './block_customization/block_customization.module';
 import { TagCustomizationModule } from './tag_customization/tag_customization.module';
+import { ConfigModule } from '@nestjs/config'; // Импорт
 
 @Module({
   imports: [
@@ -25,7 +26,10 @@ import { TagCustomizationModule } from './tag_customization/tag_customization.mo
     TagModule,
     EdgeCustomizationModule,
     BlockCustomizationModule,
-    TagCustomizationModule
+    TagCustomizationModule,
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
   ],
   controllers: [AppController],
   providers: [AppService, CleanupService, PrismaService],
