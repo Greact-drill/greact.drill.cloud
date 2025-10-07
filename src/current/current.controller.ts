@@ -21,6 +21,14 @@ export class CurrentController {
     return this.currentService.findCurrentByEdge(query.edge);
   }
 
+  @Get('details')
+  @Header('Cache-Control', 'no-store')
+  @Header('Pragma', 'no-cache')
+  @Header('Expires', '0')
+  findCurrentByEdgeWithTags(@Query() query: GetCurrentDto) {
+    return this.currentService.findCurrentByEdgeWithTags(query.edge);
+  }
+
   // @Get(':id')
   // @Header('Cache-Control', 'no-store')
   // @Header('Pragma', 'no-cache')

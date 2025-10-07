@@ -3,6 +3,19 @@ import { CreateHistoryDto } from './dto/create-history.dto';
 import { UpdateHistoryDto } from './dto/update-history.dto';
 import { PrismaService } from '../prisma.service';
 
+type HistoryGroupedWithTag = {
+  name: string;
+  min?: number;
+  max?: number;
+  comment?: string;
+  unit_of_measurement?: string;
+  tag: string;
+  history: {
+    timestamp: Date;
+    value: number;
+  }[]
+}
+
 @Injectable()
 export class HistoryService {
   constructor(private prisma: PrismaService) { }
@@ -99,4 +112,39 @@ export class HistoryService {
 
     return grouped;
   }
+
+
+  async findLatestByEdgeWithTags(edge: string, limit: number = 20): Promise<HistoryGroupedWithTag[]> {
+    const groupedHistory = await this.findLatestByEdge(edge, limit);
+
+    const tagIds = Object.keys(groupedHistory);
+    const tagRecords = await this.prisma.tag.findMany({
+      where: {
+        id: { in: tagIds },
+      },
+    });
+
+    const tagsMap = new Map(tagRecords.map(tag => [tag.id, tag]));
+
+    const result: HistoryGroupedWithTag[] = tagIds.map(tagId => {
+      const tagInfo = tagsMap.get(tagId);
+      return {
+        tag: tagId,
+        name: tagInfo?.name || tagId,
+        min: tagInfo?.min,
+        max: tagInfo?.max,
+        comment: tagInfo?.comment,
+        unit_of_measurement: tagInfo?.unit_of_measurement,
+        history: groupedHistory[tagId].map(h => ({
+          timestamp: h.timestamp,
+          value: h.value,
+        })),
+      };
+    });
+
+    // Опционально: можно отсортировать по имени тега для лучшей читаемости
+    return result.sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+
 }

@@ -21,6 +21,14 @@ export class HistoryController {
     return this.historyService.findLatestByEdge(query.edge);
   }
 
+  @Get('details')
+  @Header('Cache-Control', 'no-store')
+  @Header('Pragma', 'no-cache')
+  @Header('Expires', '0')
+  findLatestByEdgeWithTags(@Query() query: GetHistoryDto) {
+    return this.historyService.findLatestByEdgeWithTags(query.edge);
+  }
+
   // @Get(':id')
   // @Header('Cache-Control', 'no-store')
   // @Header('Pragma', 'no-cache')

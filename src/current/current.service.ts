@@ -3,6 +3,16 @@ import { CreateCurrentDto } from './dto/create-current.dto';
 import { UpdateCurrentDto } from './dto/update-current.dto';
 import { PrismaService } from '../prisma.service';
 
+type CurrentValueWithTag = {
+  tag: string;
+  value: number;
+  name?: string;
+  min?: number;
+  max?: number;
+  comment?: string;
+  unit_of_measurement?: string;
+}
+
 @Injectable()
 export class CurrentService {
   constructor(private prisma: PrismaService) { }
@@ -78,6 +88,43 @@ export class CurrentService {
     for (const record of records) {
       result[record.tag] = record.value;
     }
+
+    return result;
+  }
+
+    async findCurrentByEdgeWithTags(edge: string): Promise<CurrentValueWithTag[]> {
+    const currentRecords = await this.prisma.current.findMany({
+      where: { edge },
+      select: {
+        tag: true,
+        value: true,
+      }
+    });
+
+    // Получаем информацию о тегах
+    const tagIds = currentRecords.map(record => record.tag);
+    const tagRecords = await this.prisma.tag.findMany({
+      where: {
+        id: { in: tagIds },
+      },
+    });
+
+    // Создаем Map для быстрого доступа к тегам
+    const tagsMap = new Map(tagRecords.map(tag => [tag.id, tag]));
+
+    // Обогащаем текущие записи
+    const result: CurrentValueWithTag[] = currentRecords.map(record => {
+      const tagInfo = tagsMap.get(record.tag);
+      return {
+        tag: record.tag,
+        value: record.value,
+        name: tagInfo?.name,
+        min: tagInfo?.min,
+        max: tagInfo?.max,
+        comment: tagInfo?.comment,
+        unit_of_measurement: tagInfo?.unit_of_measurement,
+      };
+    });
 
     return result;
   }
