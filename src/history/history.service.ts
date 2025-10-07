@@ -14,7 +14,13 @@ type HistoryGroupedWithTag = {
     timestamp: Date;
     value: number;
   }[]
+  customization?: CustomizationItem[];
 }
+
+type CustomizationItem = {
+  key: string;
+  value: string;
+};
 
 @Injectable()
 export class HistoryService {
@@ -124,23 +130,49 @@ export class HistoryService {
       },
     });
 
+    const customizationRecords = await this.prisma.tag_customization.findMany({
+      where: {
+        edge_id: edge,
+        tag_id: { in: tagIds },
+      },
+      select: {
+        tag_id: true,
+        key: true,
+        value: true,
+      }
+    });
+
     const tagsMap = new Map(tagRecords.map(tag => [tag.id, tag]));
 
+    const customizationMap = new Map<string, CustomizationItem[]>();
+    for (const record of customizationRecords) {
+        if (!customizationMap.has(record.tag_id)) {
+            customizationMap.set(record.tag_id, []);
+        }
+        customizationMap.get(record.tag_id)?.push({
+            key: record.key,
+            value: record.value,
+        });
+    }
+
     const result: HistoryGroupedWithTag[] = tagIds.map(tagId => {
-      const tagInfo = tagsMap.get(tagId);
-      return {
-        tag: tagId,
-        name: tagInfo?.name || tagId,
-        min: tagInfo?.min,
-        max: tagInfo?.max,
-        comment: tagInfo?.comment,
-        unit_of_measurement: tagInfo?.unit_of_measurement,
-        history: groupedHistory[tagId].map(h => ({
-          timestamp: h.timestamp,
-          value: h.value,
-        })),
-      };
-    });
+    const tagInfo = tagsMap.get(tagId);
+    const customInfo = customizationMap.get(tagId);
+    
+    return {
+      tag: tagId,
+      name: tagInfo?.name || tagId,
+      min: tagInfo?.min,
+      max: tagInfo?.max,
+      comment: tagInfo?.comment,
+      unit_of_measurement: tagInfo?.unit_of_measurement,
+      history: groupedHistory[tagId].map(h => ({
+        timestamp: h.timestamp,
+        value: h.value,
+      })),
+      customization: customInfo,
+    };
+  });
 
     // Опционально: можно отсортировать по имени тега для лучшей читаемости
     return result.sort((a, b) => a.name.localeCompare(b.name));

@@ -13,6 +13,11 @@ type CurrentValueWithTag = {
   unit_of_measurement?: string;
 }
 
+type CustomizationItem = {
+  key: string;
+  value: string;
+};
+
 @Injectable()
 export class CurrentService {
   constructor(private prisma: PrismaService) { }
@@ -109,13 +114,38 @@ export class CurrentService {
       },
     });
 
+    const customizationRecords = await this.prisma.tag_customization.findMany({
+      where: {
+        edge_id: edge,
+        tag_id: { in: tagIds },
+      },
+      select: {
+        tag_id: true,
+        key: true,
+        value: true,
+      }
+    });
+    
     // Создаем Map для быстрого доступа к тегам
     const tagsMap = new Map(tagRecords.map(tag => [tag.id, tag]));
+    
+    const customizationMap = new Map<string, CustomizationItem[]>();
+    for (const record of customizationRecords) {
+        if (!customizationMap.has(record.tag_id)) {
+            customizationMap.set(record.tag_id, []);
+        }
+        customizationMap.get(record.tag_id)?.push({
+            key: record.key,
+            value: record.value,
+        });
+    }
 
     // Обогащаем текущие записи
     const result: CurrentValueWithTag[] = currentRecords.map(record => {
-      const tagInfo = tagsMap.get(record.tag);
-      return {
+    const tagInfo = tagsMap.get(record.tag);
+    const customInfo = customizationMap.get(record.tag);
+      
+    return {
         tag: record.tag,
         value: record.value,
         name: tagInfo?.name,
@@ -123,6 +153,7 @@ export class CurrentService {
         max: tagInfo?.max,
         comment: tagInfo?.comment,
         unit_of_measurement: tagInfo?.unit_of_measurement,
+        customization: customInfo,
       };
     });
 
