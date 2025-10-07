@@ -20,7 +20,7 @@ services:
 
   cloud-db-dev-common:
     image: postgres:17
-    container_name: cloud-database-container
+    container_name: cloud-common-database-container
     restart: always
     expose:
       - '5432'
