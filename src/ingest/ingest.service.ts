@@ -48,11 +48,13 @@ export class IngestService {
         currentResults.push(currentRecord);
       }
 
-      return {
+      return [
+        {
         //historyRecords: historyResults,
         //currentRecords: currentResults,
-        processed: data.length,
-      };
+          processed: data.length,
+        }
+      ];
     });
   }
 }
