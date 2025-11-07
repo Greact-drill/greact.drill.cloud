@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
 import { BlockService } from './block.service';
 import { CreateBlockDto } from './dto/create-block.dto';
 import { UpdateBlockDto } from './dto/update-block.dto';
@@ -13,8 +13,8 @@ export class BlockController {
   }
 
   @Get()
-  findAll() {
-    return this.blockService.findAll();
+  findAll(@Query('edge_id') edgeId?: string) {
+    return this.blockService.findAll(edgeId); 
   }
 
   @Get(':id')

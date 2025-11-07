@@ -20,8 +20,18 @@ export class BlockService {
     });
   }
 
-  async findAll() {
+  /**
+   * Возвращает все блоки, опционально фильтруя по edge_id.
+   * @param edgeId ID Edge (буровой), по которому нужно фильтровать.
+   */
+  async findAll(edgeId?: string) { 
+    
+    const whereCondition: Prisma.blockWhereInput = edgeId
+      ? { edge_id: edgeId } // Вы хотите: { edge_id: "DrillEdge1" }
+      : {};
+    
     return this.prisma.block.findMany({
+      where: whereCondition, 
       orderBy: [{ edge_id: 'asc' }, { id: 'asc' }],
     });
   }
