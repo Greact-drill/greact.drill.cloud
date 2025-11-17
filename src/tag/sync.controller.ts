@@ -22,7 +22,7 @@ export class SyncController {
 
   @Post('tags')
   async syncTagsFromCurrentApi(@Query('edge') edge: string = 'real') {
-    const apiUrl = `${this.currentApiBaseUrl}/api/current?edge=${edge}`;
+    const apiUrl = `${this.currentApiBaseUrl}/current?edge=${edge}`;
     
     try {
       const response = await axios.get<{ [tagId: string]: number }>(apiUrl);
