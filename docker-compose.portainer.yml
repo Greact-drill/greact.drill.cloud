@@ -9,7 +9,7 @@ services:
     expose:
       - '3000'
     depends_on:
-      cloud-db-test:
+      cloud-db-dev:
         condition: service_healthy
     container_name: greact-drill-cloud-${BRANCH}
     environment:
@@ -19,14 +19,14 @@ services:
     networks:
       - proxy
 
-  cloud-db-test:
+  cloud-db-dev:
     image: postgres:17
-    container_name: cloud-test-database-container
+    container_name: cloud-dev-database-container
     restart: always
     expose:
       - '5432'
     volumes:
-      - cloud-db-test:/var/lib/postgresql/data
+      - cloud-db-dev:/var/lib/postgresql/data
     environment:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
@@ -41,7 +41,7 @@ services:
       start_period: 10s
 
 volumes:
-  cloud-db-test:
+  cloud-db-dev:
 
 networks:
   proxy:
