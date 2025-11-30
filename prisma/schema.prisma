@@ -1,8 +1,5 @@
 // This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// learn more about it in the docs: https://pris.ly/d/prisma-schema 
 
 generator client {
   provider = "prisma-client-js"
@@ -12,7 +9,6 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  // Добавляем схему frontend для таблиц кастомизации
   schemas  = ["public", "frontend"]
 }
 
@@ -20,7 +16,6 @@ datasource db {
 // Public Schema (default)
 // ------------------------------------
 
-// История снятых показаний, собранных метрик
 model History {
   id        Int      @id @default(autoincrement())
   edge      String   @db.VarChar(100)
@@ -38,7 +33,6 @@ model History {
   @@map("history")
 }
 
-// Текущие значения показаний, метрик
 model Current {
   id        Int      @id @default(autoincrement())
   edge      String   @db.VarChar(100)
@@ -54,36 +48,33 @@ model Current {
   @@map("current")
 }
 
-model edge {
-  id      String @id @db.VarChar(100)
-  name    String
-  blocks  block[] // Связь с таблицей block
+model Edge {
+  id        String   @id @db.VarChar(100)
+  name      String
+  parent_id String?  @db.VarChar(100)
+  
+  // Self-referential relation for hierarchy
+  parent    Edge?    @relation("EdgeToParent", fields: [parent_id], references: [id])
+  children  Edge[]   @relation("EdgeToParent")
+  
+  // Customizations
+  edge_customizations edge_customization[]
+  tag_customizations  tag_customization[]
 
   @@schema("public")
   @@index([name])
+  @@index([parent_id])
   @@map("edge")
 }
 
-model block {
-  edge_id   String @db.VarChar(100)
-  id        String @id @db.VarChar(100)
-  name      String
-  edge      edge @relation(fields: [edge_id], references: [id])
-
-  @@schema("public")
-  @@index([edge_id,name])
-  @@index([edge_id])
-  @@index([name])
-  @@map("block")
-}
-
-model tag {
+model Tag {
   id                  String @id @db.VarChar(100)
   name                String
   min                 Int
   max                 Int
   comment             String
   unit_of_measurement String
+  tag_customizations  tag_customization[]
 
   @@schema("public")
   @@index([name])
@@ -95,10 +86,11 @@ model tag {
 // ------------------------------------
 
 model edge_customization {
-  id         Int @id @default(autoincrement())
+  id         Int    @id @default(autoincrement())
   edge_id    String @db.VarChar(100)
   key        String
   value      String
+  edge       Edge   @relation(fields: [edge_id], references: [id])
 
   @@schema("frontend")
   @@unique([edge_id, key])
@@ -106,24 +98,14 @@ model edge_customization {
   @@map("edge_customization")
 }
 
-model block_customization {
-  id         Int @id @default(autoincrement())
-  block_id   String @db.VarChar(100)
-  key        String
-  value      String
-  
-  @@schema("frontend")
-  @@unique([block_id, key])
-  @@index([block_id])
-  @@map("block_customization")
-}
-
 model tag_customization {
-  id         Int @id @default(autoincrement())
+  id         Int    @id @default(autoincrement())
   edge_id    String @db.VarChar(100)
   tag_id     String @db.VarChar(100)
   key        String
   value      String
+  edge       Edge   @relation(fields: [edge_id], references: [id])
+  tag        Tag    @relation(fields: [tag_id], references: [id])
 
   @@schema("frontend")
   @@unique([edge_id, tag_id, key])

@@ -17,9 +17,19 @@ export class EdgeController {
     return this.edgeService.findAll();
   }
 
+  @Get('tree')
+  findTree() {
+    return this.edgeService.findTree();
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.edgeService.findOne(id);
+  }
+
+  @Get(':id/children')
+  findChildren(@Param('id') id: string) {
+    return this.edgeService.findChildren(id);
   }
 
   @Patch(':id')
