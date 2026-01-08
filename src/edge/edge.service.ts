@@ -45,6 +45,183 @@ export class EdgeService {
     });
   }
 
+  async findRoots() {
+    return this.prisma.edge.findMany({
+      where: { parent_id: null },
+      orderBy: [{ id: 'asc' }],
+      include: {
+        children: true,
+        parent: {
+          select: {
+            id: true,
+            name: true
+          }
+        }
+      }
+    });
+  }
+
+  async getWidgetConfigs(edgeId: string) {
+    // Находим все кастомизации для данного edge
+    const customizations = await this.prisma.tag_customization.findMany({
+      where: { 
+        edge_id: edgeId,
+        key: 'widgetConfig'
+      }
+    });
+
+    const result = [];
+    
+    for (const custom of customizations) {
+      try {
+        const config = JSON.parse(custom.value);
+        const tag = await this.prisma.tag.findUnique({
+          where: { id: custom.tag_id }
+        });
+        
+        const current = await this.prisma.current.findUnique({
+          where: {
+            edge_tag: {
+              edge: custom.edge_id,
+              tag: custom.tag_id
+            }
+          }
+        });
+
+        result.push({
+          id: custom.id,
+          edge_id: custom.edge_id,
+          tag_id: custom.tag_id,
+          config,
+          tag: {
+            id: tag?.id,
+            name: tag?.name,
+            comment: tag?.comment,
+            unit_of_measurement: tag?.unit_of_measurement,
+            min: tag?.min,
+            max: tag?.max
+          },
+          current: current ? {
+            value: current.value,
+            updatedAt: current.updatedAt
+          } : null
+        });
+      } catch (error) {
+        console.error('Ошибка парсинга конфига:', error);
+      }
+    }
+
+    return result;
+  }
+
+  async getWidgetConfigsByPage(page: string) {
+    // Находим все кастомизации
+    const customizations = await this.prisma.tag_customization.findMany({
+      where: {
+        key: 'widgetConfig'
+      }
+    });
+
+    const result = [];
+    
+    for (const custom of customizations) {
+      try {
+        const config = JSON.parse(custom.value);
+        
+        // Проверяем, подходит ли конфиг для запрошенной страницы
+        if (config.page === page) {
+          const tag = await this.prisma.tag.findUnique({
+            where: { id: custom.tag_id }
+          });
+          
+          const current = await this.prisma.current.findUnique({
+            where: {
+              edge_tag: {
+                edge: custom.edge_id,
+                tag: custom.tag_id
+              }
+            }
+          });
+
+          result.push({
+            id: custom.id,
+            edge_id: custom.edge_id,
+            tag_id: custom.tag_id,
+            config,
+            tag: {
+              id: tag?.id,
+              name: tag?.name,
+              comment: tag?.comment,
+              unit_of_measurement: tag?.unit_of_measurement,
+              min: tag?.min,
+              max: tag?.max
+            },
+            current: current ? {
+              value: current.value,
+              updatedAt: current.updatedAt
+            } : null
+          });
+        }
+      } catch (error) {
+        console.error('Ошибка парсинга конфига:', error);
+      }
+    }
+
+    return result;
+  }
+
+  async getAllWidgetConfigs() {
+    // Находим все кастомизации с widgetConfig
+    const customizations = await this.prisma.tag_customization.findMany({
+      where: {
+        key: 'widgetConfig'
+      }
+    });
+
+    const result = [];
+    
+    for (const custom of customizations) {
+      try {
+        const config = JSON.parse(custom.value);
+        const tag = await this.prisma.tag.findUnique({
+          where: { id: custom.tag_id }
+        });
+        
+        const current = await this.prisma.current.findUnique({
+          where: {
+            edge_tag: {
+              edge: custom.edge_id,
+              tag: custom.tag_id
+            }
+          }
+        });
+
+        result.push({
+          id: custom.id,
+          edge_id: custom.edge_id,
+          tag_id: custom.tag_id,
+          config,
+          tag: {
+            id: tag?.id,
+            name: tag?.name,
+            comment: tag?.comment,
+            unit_of_measurement: tag?.unit_of_measurement,
+            min: tag?.min,
+            max: tag?.max
+          },
+          current: current ? {
+            value: current.value,
+            updatedAt: current.updatedAt
+          } : null
+        });
+      } catch (error) {
+        console.error('Ошибка парсинга конфига:', error);
+      }
+    }
+
+    return result;
+  }
+
   async findTree() {
     const edges = await this.prisma.edge.findMany({
       include: {

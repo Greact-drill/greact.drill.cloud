@@ -17,6 +17,11 @@ export class EdgeController {
     return this.edgeService.findAll();
   }
 
+  @Get('roots')
+  findRoots() {
+    return this.edgeService.findRoots();
+  }
+
   @Get('tree')
   findTree() {
     return this.edgeService.findTree();
@@ -40,5 +45,20 @@ export class EdgeController {
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.edgeService.remove(id);
+  }
+
+  @Get(':edgeId/widget-configs')
+  async getWidgetConfigs(@Param('edgeId') edgeId: string) {
+    return this.edgeService.getWidgetConfigs(edgeId);
+  }
+
+  @Get('page/:page/widget-configs')
+  async getWidgetConfigsByPage(@Param('page') page: string) {
+    return this.edgeService.getWidgetConfigsByPage(page);
+  }
+
+  @Get('widget-configs/all')
+  async getAllWidgetConfigs() {
+    return this.edgeService.getAllWidgetConfigs();
   }
 }
