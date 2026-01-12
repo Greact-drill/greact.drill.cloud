@@ -61,4 +61,14 @@ export class EdgeController {
   async getAllWidgetConfigs() {
     return this.edgeService.getAllWidgetConfigs();
   }
+
+  @Get('page/:page/table-config')
+  async getTableConfigByPage(@Param('page') page: string) {
+    return this.edgeService.getTableConfigsByPage(page);
+  }
+
+  @Get('table-configs/all')
+  async getAllTableConfigs() {
+    return this.edgeService.getAllTableConfigs();
+  }
 }

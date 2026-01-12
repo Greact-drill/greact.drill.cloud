@@ -222,6 +222,120 @@ export class EdgeService {
     return result;
   }
 
+  // Методы для работы с таблицами
+  async getTableConfigsByPage(page: string) {
+    // Ищем конфигурацию таблицы для страницы
+    // Используем edge_customization, где edge_id = page, key = 'tableConfig'
+    const customization = await this.prisma.edge_customization.findUnique({
+      where: {
+        edge_id_key: {
+          edge_id: page,
+          key: 'tableConfig'
+        }
+      }
+    });
+
+    if (!customization) {
+      return null;
+    }
+
+    try {
+      const config = JSON.parse(customization.value);
+      
+      // Загружаем данные для таблицы: значения тегов
+      const result: any = {
+        id: customization.id,
+        page: config.page || page,
+        title: config.title || '',
+        rows: config.rows || 0,
+        cols: config.cols || 0,
+        rowHeaders: config.rowHeaders || [],
+        colHeaders: config.colHeaders || [],
+        cells: config.cells || [],
+        data: {} // Данные будут заполнены ниже
+      };
+
+      // Загружаем значения тегов для ячеек
+      // Нужно получить edge_id для загрузки данных тегов
+      // Для этого используем первый доступный edge или edge из page (если page не MAIN_)
+      let edgeId = page;
+      if (page.startsWith('MAIN_')) {
+        edgeId = page.replace('MAIN_', '');
+      }
+
+      for (let row = 0; row < result.rows; row++) {
+        result.data[row] = {};
+        for (let col = 0; col < result.cols; col++) {
+          const cell = result.cells?.[row]?.[col];
+          if (cell && (cell.type === 'tag-number' || cell.type === 'tag-text') && cell.value) {
+            const tagId = cell.value;
+            
+            const current = await this.prisma.current.findUnique({
+              where: {
+                edge_tag: {
+                  edge: edgeId,
+                  tag: tagId
+                }
+              }
+            });
+
+            const tag = await this.prisma.tag.findUnique({
+              where: { id: tagId }
+            });
+
+            result.data[row][col] = {
+              value: current?.value ?? null,
+              tag: tag ? {
+                id: tag.id,
+                name: tag.name,
+                comment: tag.comment,
+                unit_of_measurement: tag.unit_of_measurement,
+                min: tag.min,
+                max: tag.max
+              } : null,
+              updatedAt: current?.updatedAt ?? null
+            };
+          } else {
+            result.data[row][col] = null;
+          }
+        }
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Ошибка парсинга конфига таблицы:', error);
+      return null;
+    }
+  }
+
+  async getAllTableConfigs() {
+    // Находим все конфигурации таблиц
+    const customizations = await this.prisma.edge_customization.findMany({
+      where: {
+        key: 'tableConfig'
+      }
+    });
+
+    const result = [];
+    
+    for (const custom of customizations) {
+      try {
+        const config = JSON.parse(custom.value);
+        result.push({
+          id: custom.id,
+          page: config.page || custom.edge_id,
+          title: config.title || '',
+          rows: config.rows || 0,
+          cols: config.cols || 0
+        });
+      } catch (error) {
+        console.error('Ошибка парсинга конфига таблицы:', error);
+      }
+    }
+
+    return result;
+  }
+
   async findTree() {
     const edges = await this.prisma.edge.findMany({
       include: {
