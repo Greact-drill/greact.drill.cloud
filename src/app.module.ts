@@ -8,10 +8,8 @@ import { IngestModule } from './ingest/ingest.module';
 import { CleanupService } from './cleanup/cleanup.service';
 import { PrismaService } from './prisma.service';
 import { EdgeModule } from './edge/edge.module';
-import { BlockModule } from './block/block.module';
 import { TagModule } from './tag/tag.module';
 import { EdgeCustomizationModule } from './edge_customization/edge_customization.module';
-import { BlockCustomizationModule } from './block_customization/block_customization.module';
 import { TagCustomizationModule } from './tag_customization/tag_customization.module';
 import { ConfigModule } from '@nestjs/config'; // Импорт
 
@@ -22,10 +20,8 @@ import { ConfigModule } from '@nestjs/config'; // Импорт
     CurrentModule,
     IngestModule,
     EdgeModule,
-    BlockModule,
     TagModule,
     EdgeCustomizationModule,
-    BlockCustomizationModule,
     TagCustomizationModule,
     ConfigModule.forRoot({
       isGlobal: true,
