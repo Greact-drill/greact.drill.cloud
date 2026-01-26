@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
 import { EdgeService } from './edge.service';
 import { CreateEdgeDto } from './dto/create-edge.dto';
 import { UpdateEdgeDto } from './dto/update-edge.dto';
@@ -50,6 +50,25 @@ export class EdgeController {
   @Get(':edgeId/widget-configs')
   async getWidgetConfigs(@Param('edgeId') edgeId: string) {
     return this.edgeService.getWidgetConfigs(edgeId);
+  }
+
+  @Get(':edgeId/scoped-current')
+  async getScopedCurrent(
+    @Param('edgeId') edgeId: string,
+    @Query('includeChildren') includeChildren?: string
+  ) {
+    const include = includeChildren !== 'false';
+    return this.edgeService.getScopedCurrent(edgeId, include);
+  }
+
+  @Post(':edgeId/current-by-tags')
+  async getCurrentByTags(
+    @Param('edgeId') edgeId: string,
+    @Body() body: { tagIds?: string[]; includeChildren?: boolean }
+  ) {
+    const tagIds = Array.isArray(body?.tagIds) ? body.tagIds : [];
+    const include = body?.includeChildren !== false;
+    return this.edgeService.getCurrentByTags(edgeId, tagIds, include);
   }
 
   @Get('page/:page/widget-configs')
