@@ -64,8 +64,20 @@ export class CurrentService {
 
   // Дополнительные методы для работы с текущими значениями
   async findByEdge(edge: string) {
+    const edgeTags = await this.prisma.edge_tag.findMany({
+      where: { edge_id: edge },
+      select: { tag_id: true }
+    });
+    const allowedTagIds = edgeTags.map(link => link.tag_id);
+    if (!allowedTagIds.length) {
+      return [];
+    }
+
     return this.prisma.current.findMany({
-      where: { edge },
+      where: {
+        edge,
+        tag: { in: allowedTagIds }
+      },
       orderBy: { tag: 'asc' },
     });
   }
@@ -80,8 +92,20 @@ export class CurrentService {
 
   // Получить текущие значения для указанного edge в формате { tag: value }
   async findCurrentByEdge(edge: string): Promise<Record<string, number>> {
+    const edgeTags = await this.prisma.edge_tag.findMany({
+      where: { edge_id: edge },
+      select: { tag_id: true }
+    });
+    const allowedTagIds = edgeTags.map(link => link.tag_id);
+    if (!allowedTagIds.length) {
+      return {};
+    }
+
     const records = await this.prisma.current.findMany({
-      where: { edge },
+      where: {
+        edge,
+        tag: { in: allowedTagIds }
+      },
       select: {
         tag: true,
         value: true,
@@ -98,8 +122,20 @@ export class CurrentService {
   }
 
     async findCurrentByEdgeWithTags(edge: string): Promise<CurrentValueWithTag[]> {
+    const edgeTags = await this.prisma.edge_tag.findMany({
+      where: { edge_id: edge },
+      select: { tag_id: true }
+    });
+    const allowedTagIds = edgeTags.map(link => link.tag_id);
+    if (!allowedTagIds.length) {
+      return [];
+    }
+
     const currentRecords = await this.prisma.current.findMany({
-      where: { edge },
+      where: {
+        edge,
+        tag: { in: allowedTagIds }
+      },
       select: {
         tag: true,
         value: true,
