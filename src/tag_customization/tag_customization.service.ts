@@ -8,8 +8,20 @@ export class TagCustomizationService {
   constructor(private prisma: PrismaService) {}
 
   async create(createTagCustomizationDto: CreateTagCustomizationDto) {
-    return this.prisma.tag_customization.create({
-      data: createTagCustomizationDto,
+    return this.prisma.$transaction(async tx => {
+      const customization = await tx.tag_customization.create({
+        data: createTagCustomizationDto,
+      });
+
+      await tx.edge_tag.createMany({
+        data: [{
+          edge_id: createTagCustomizationDto.edge_id,
+          tag_id: createTagCustomizationDto.tag_id
+        }],
+        skipDuplicates: true
+      });
+
+      return customization;
     });
   }
 

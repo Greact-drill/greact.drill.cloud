@@ -60,6 +60,7 @@ model Edge {
   // Customizations
   edge_customizations edge_customization[]
   tag_customizations  tag_customization[]
+  edge_tags           edge_tag[]
 
   @@schema("public")
   @@index([name])
@@ -75,10 +76,24 @@ model Tag {
   comment             String
   unit_of_measurement String
   tag_customizations  tag_customization[]
+  edge_tags           edge_tag[]
 
   @@schema("public")
   @@index([name])
   @@map("tag")
+}
+
+model edge_tag {
+  edge_id String @db.VarChar(100)
+  tag_id  String @db.VarChar(100)
+
+  edge Edge @relation(fields: [edge_id], references: [id])
+  tag  Tag  @relation(fields: [tag_id], references: [id])
+
+  @@id([edge_id, tag_id])
+  @@index([tag_id])
+  @@map("edge_tag")
+  @@schema("public")
 }
 
 // ------------------------------------

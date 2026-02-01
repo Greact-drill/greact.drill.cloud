@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsNumber } from 'class-validator';
+import { IsArray, ArrayNotEmpty, IsString, IsNotEmpty, IsNumber } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateTagDto {
@@ -25,4 +25,9 @@ export class CreateTagDto {
 
     @IsString()
     unit_of_measurement: string;
+
+    @IsArray()
+    @ArrayNotEmpty()
+    @IsString({ each: true })
+    edge_ids: string[];
 }
