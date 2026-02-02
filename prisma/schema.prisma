@@ -60,12 +60,15 @@ model Edge {
   // Customizations
   edge_customizations edge_customization[]
   tag_customizations  tag_customization[]
-  edge_tags           edge_tag[]
+  //edge_tags           edge_tag[]
 
   @@schema("public")
   @@index([name])
   @@index([parent_id])
   @@map("edge")
+
+
+  tags Tag[]
 }
 
 model Tag {
@@ -76,11 +79,13 @@ model Tag {
   comment             String
   unit_of_measurement String
   tag_customizations  tag_customization[]
-  edge_tags           edge_tag[]
+  //edge_tags           edge_tag[]
 
   @@schema("public")
   @@index([name])
   @@map("tag")
+
+  edges Edge[]
 }
 
 model edge_tag {
