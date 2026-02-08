@@ -60,15 +60,14 @@ model Edge {
   // Customizations
   edge_customizations edge_customization[]
   tag_customizations  tag_customization[]
-  //edge_tags           edge_tag[]
+  
+  // Relations
+  edge_tags           edge_tag[]  // Added this back-reference
 
   @@schema("public")
   @@index([name])
   @@index([parent_id])
   @@map("edge")
-
-
-  tags Tag[]
 }
 
 model Tag {
@@ -79,21 +78,21 @@ model Tag {
   comment             String
   unit_of_measurement String
   tag_customizations  tag_customization[]
-  //edge_tags           edge_tag[]
+  
+  // Relations
+  edge_tags           edge_tag[]  // Added this back-reference
 
   @@schema("public")
   @@index([name])
   @@map("tag")
-
-  edges Edge[]
 }
 
 model edge_tag {
   edge_id String @db.VarChar(100)
   tag_id  String @db.VarChar(100)
 
-  edge Edge @relation(fields: [edge_id], references: [id])
-  tag  Tag  @relation(fields: [tag_id], references: [id])
+  edge Edge @relation(fields: [edge_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tag  Tag  @relation(fields: [tag_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
   @@id([edge_id, tag_id])
   @@index([tag_id])
@@ -110,7 +109,7 @@ model edge_customization {
   edge_id    String @db.VarChar(100)
   key        String
   value      String
-  edge       Edge   @relation(fields: [edge_id], references: [id])
+  edge       Edge   @relation(fields: [edge_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
   @@schema("frontend")
   @@unique([edge_id, key])
@@ -124,8 +123,8 @@ model tag_customization {
   tag_id     String @db.VarChar(100)
   key        String
   value      String
-  edge       Edge   @relation(fields: [edge_id], references: [id])
-  tag        Tag    @relation(fields: [tag_id], references: [id])
+  edge       Edge   @relation(fields: [edge_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tag        Tag    @relation(fields: [tag_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
   @@schema("frontend")
   @@unique([edge_id, tag_id, key])
