@@ -1,92 +1,83 @@
-# Cloud API
+# Drill Cloud API
 
-REST API для сбора и хранения показаний с буровых установок на базе NestJS, Prisma и PostgreSQL.
+Центральный REST API для хранения, управления и выдачи телеметрии буровых установок. Построен на NestJS + Prisma + PostgreSQL. Реализует логику привязки тегов к блокам (`edge↔tag`).
 
-## Структура данных
+## Назначение
+- хранение телеметрии (`history`, `current`)
+- управление деревом оборудования (`edge`)
+- управление тегами и их связями с блоками (`tag`, `edge_tag`)
+- конфигурации UI (виджеты, таблицы, кастомизации)
+- синхронизация тегов с внешними источниками
 
-### History
-Лог снятых показаний, собранных метрик:
-- `edge` - идентификатор устройства/буровой установки (string, 100)
-- `timestamp` - дата и время снятия показаний (datetime)
-- `tag` - идентификатор параметра (string, 100)
-- `value` - числовое показание (decimal 16.3)
+## Схема данных (упрощенно)
+```mermaid
+erDiagram
+  EDGE ||--o{ EDGE_TAG : binds
+  TAG  ||--o{ EDGE_TAG : binds
+  EDGE ||--o{ CURRENT  : has
+  TAG  ||--o{ CURRENT  : has
+  EDGE ||--o{ HISTORY  : has
+  TAG  ||--o{ HISTORY  : has
+  EDGE ||--o{ EDGE_CUSTOMIZATION : has
+  EDGE ||--o{ TAG_CUSTOMIZATION  : has
+  TAG  ||--o{ TAG_CUSTOMIZATION  : has
+```
 
-### Current
-Текущие значения показаний, метрик:
-- `edge` - идентификатор устройства/буровой установки (string, 100)
-- `tag` - идентификатор параметра (string, 100)
-- `value` - числовое показание (decimal 16.3)
+## Ключевые эндпоинты
+### Edge
+- `GET /edge` — список блоков
+- `GET /edge/tree` — дерево блоков
+- `GET /edge/:id/children` — дочерние блоки
+- `GET /edge/:id/scoped-current` — текущие данные, отфильтрованные по разрешенным тегам
+- `POST /edge/:id/current-by-tags` — текущие данные по списку тегов (учитывает edge_tag)
+- `GET /edge/widget-configs/all` — все конфигурации виджетов
+- `GET /edge/page/:page/table-config` — таблица по странице
 
-## API Endpoints
+### Tag
+- `GET /tag` — список тегов (с `edge_ids`)
+- `POST /tag` — создание тега с привязкой
+- `PATCH /tag/:id` — обновление тега/привязок
+- `POST /sync/tags?edge=EDGE_ID` — синхронизация тегов с внешним источником
 
-### History
-- `GET /history` - получить все записи истории
-- `POST /history` - добавить новую запись
-- `GET /history/:id` - получить запись по ID
-- `PUT /history/:id` - обновить запись
-- `DELETE /history/:id` - удалить запись
+### Current/History
+- `GET /current?edge=EDGE_ID` — текущие значения по edge
+- `GET /current/details?edge=EDGE_ID` — текущие значения с метаданными
+- `POST /ingest` — пакетная загрузка телеметрии
+- `GET /history` — история значений
 
-### Current
-- `GET /current` - получить все текущие значения
-- `POST /current` - добавить/обновить значение (upsert по edge+tag)
-- `GET /current/:id` - получить значение по ID
-- `PUT /current/:id` - обновить значение
-- `DELETE /current/:id` - удалить значение
+### Customizations
+- `GET /tag-customization` / `POST /tag-customization`
+- `GET /edge-customization` / `POST /edge-customization`
 
-## Установка и запуск
+## Логика привязки тегов к блокам
+Все выдачи «текущих» значений фильтруются через таблицу `edge_tag`.
+Это предотвращает отображение тегов, не принадлежащих выбранному блоку.
 
-### Локальная разработка
-
+## Запуск
 ```bash
-# Установка зависимостей
 npm install
-
-# Настройка базы данных
-npm run migrate:dev:create
-npm run migrate:dev
 npm run prisma:generate
-
-# Запуск в режиме разработки
+npm run migrate:dev
 npm run start:dev
 ```
 
-### Продакшн (Docker)
-
+## Миграции
 ```bash
-# Сборка и запуск через Docker Compose
-docker-compose -f docker-compose.portainer.yml up --build
+npm run migrate:dev:create
+npm run migrate:dev
+npm run migrate:deploy
 ```
 
 ## Переменные окружения
-
-Создайте файл `.env`:
-
 ```env
-DATABASE_URL="postgresql://user:password@localhost:5432/cloud_db"
-POSTGRES_USER=user
-POSTGRES_PASSWORD=password
-POSTGRES_DB=cloud_db
+DATABASE_URL="postgresql://user:password@localhost:5432/drillcloud"
 ```
 
-## Миграции
-
-```bash
-# Создать новую миграцию
-npm run migrate:dev:create
-
-# Применить миграции (разработка)
-npm run migrate:dev
-
-# Применить миграции (продакшн)
-npm run migrate:deploy
-
-# Генерация Prisma клиента
-npm run prisma:generate
+## Архитектура
+```mermaid
+flowchart LR
+  Bus -->|ingest| Cloud
+  Admin -->|CRUD| Cloud
+  View -->|read| Cloud
+  Cloud --> DB[(PostgreSQL)]
 ```
-
-## Технологии
-
-- **NestJS** - Node.js фреймворк
-- **Prisma** - ORM для работы с базой данных
-- **PostgreSQL** - база данных
-- **Docker** - контейнеризация

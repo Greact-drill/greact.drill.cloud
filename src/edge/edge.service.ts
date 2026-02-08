@@ -7,6 +7,278 @@ import { PrismaService } from '../prisma.service';
 export class EdgeService {
   constructor(private prisma: PrismaService) {}
 
+  private async getDescendantEdgeIds(edgeId: string): Promise<string[]> {
+    const edges = await this.prisma.edge.findMany({
+      select: {
+        id: true,
+        parent_id: true
+      }
+    });
+
+    const childrenMap = new Map<string, string[]>();
+    edges.forEach(edge => {
+      if (!edge.parent_id) {
+        return;
+      }
+      if (!childrenMap.has(edge.parent_id)) {
+        childrenMap.set(edge.parent_id, []);
+      }
+      childrenMap.get(edge.parent_id)!.push(edge.id);
+    });
+
+    const result: string[] = [];
+    const stack = [edgeId];
+    while (stack.length) {
+      const current = stack.pop()!;
+      result.push(current);
+      const children = childrenMap.get(current) ?? [];
+      children.forEach(child => stack.push(child));
+    }
+
+    return result;
+  }
+
+  async getScopedCurrent(edgeId: string, includeChildren: boolean = true) {
+    const edgeIds = includeChildren ? await this.getDescendantEdgeIds(edgeId) : [edgeId];
+
+    const tagCustomizations = await this.prisma.tag_customization.findMany({
+      where: {
+        edge_id: { in: edgeIds },
+        key: 'widgetConfig'
+      },
+      select: {
+        edge_id: true,
+        tag_id: true
+      }
+    });
+
+    const tableCustomizations = await this.prisma.edge_customization.findMany({
+      where: {
+        edge_id: { in: edgeIds },
+        key: 'tableConfig'
+      },
+      select: {
+        edge_id: true,
+        value: true
+      }
+    });
+
+    const allowedTagsByEdge = new Map<string, Set<string>>();
+    tagCustomizations.forEach(custom => {
+      if (!allowedTagsByEdge.has(custom.edge_id)) {
+        allowedTagsByEdge.set(custom.edge_id, new Set());
+      }
+      allowedTagsByEdge.get(custom.edge_id)!.add(custom.tag_id);
+    });
+
+    tableCustomizations.forEach(custom => {
+      try {
+        const config = JSON.parse(custom.value);
+        const cells = Array.isArray(config.cells) ? config.cells : [];
+        cells.forEach((row: any[]) => {
+          if (!Array.isArray(row)) {
+            return;
+          }
+          row.forEach(cell => {
+            if (!cell || (cell.type !== 'tag-number' && cell.type !== 'tag-text')) {
+              return;
+            }
+            const tagId = cell.tag_id || cell.value;
+            if (!tagId) {
+              return;
+            }
+            if (!allowedTagsByEdge.has(custom.edge_id)) {
+              allowedTagsByEdge.set(custom.edge_id, new Set());
+            }
+            allowedTagsByEdge.get(custom.edge_id)!.add(tagId);
+          });
+        });
+      } catch (error) {
+        console.error('Ошибка парсинга tableConfig:', error);
+      }
+    });
+
+    if (!allowedTagsByEdge.size) {
+      return { edgeIds, tags: [], tagMeta: [] };
+    }
+
+    const allowedTagIds = new Set<string>();
+    allowedTagsByEdge.forEach(tagIds => {
+      tagIds.forEach(tagId => allowedTagIds.add(tagId));
+    });
+
+    if (!allowedTagIds.size) {
+      return { edgeIds, tags: [], tagMeta: [] };
+    }
+
+    const edgeTagLinks = await this.prisma.edge_tag.findMany({
+      where: {
+        edge_id: { in: edgeIds },
+        tag_id: { in: Array.from(allowedTagIds) }
+      },
+      select: { edge_id: true, tag_id: true }
+    });
+
+    const allowedByEdgeTag = new Map<string, Set<string>>();
+    edgeTagLinks.forEach(link => {
+      if (!allowedByEdgeTag.has(link.edge_id)) {
+        allowedByEdgeTag.set(link.edge_id, new Set());
+      }
+      allowedByEdgeTag.get(link.edge_id)!.add(link.tag_id);
+    });
+
+    allowedTagsByEdge.forEach((tagIds, edge) => {
+      const allowedForEdge = allowedByEdgeTag.get(edge);
+      if (!allowedForEdge) {
+        allowedTagsByEdge.delete(edge);
+        return;
+      }
+      const filtered = new Set(Array.from(tagIds).filter(tagId => allowedForEdge.has(tagId)));
+      if (!filtered.size) {
+        allowedTagsByEdge.delete(edge);
+        return;
+      }
+      allowedTagsByEdge.set(edge, filtered);
+    });
+
+    if (!allowedTagsByEdge.size) {
+      return { edgeIds, tags: [], tagMeta: [] };
+    }
+
+    const filteredAllowedTagIds = new Set<string>();
+    allowedTagsByEdge.forEach(tagIds => {
+      tagIds.forEach(tagId => filteredAllowedTagIds.add(tagId));
+    });
+
+    const currentRecords = await this.prisma.current.findMany({
+      where: {
+        edge: { in: edgeIds },
+        tag: { in: Array.from(filteredAllowedTagIds) }
+      },
+      select: {
+        edge: true,
+        tag: true,
+        value: true
+      }
+    });
+
+    const filteredRecords = currentRecords.filter(record => {
+      const allowed = allowedTagsByEdge.get(record.edge);
+      return allowed ? allowed.has(record.tag) : false;
+    });
+
+    const tagIds = Array.from(filteredAllowedTagIds);
+    const tagRecords = await this.prisma.tag.findMany({
+      where: {
+        id: { in: tagIds }
+      }
+    });
+    const tagsMap = new Map(tagRecords.map(tag => [tag.id, tag]));
+
+    const tags = filteredRecords.map(record => {
+      const tagInfo = tagsMap.get(record.tag);
+      return {
+        edge: record.edge,
+        tag: record.tag,
+        value: record.value,
+        name: tagInfo?.name,
+        min: tagInfo?.min,
+        max: tagInfo?.max,
+        comment: tagInfo?.comment,
+        unit_of_measurement: tagInfo?.unit_of_measurement
+      };
+    });
+
+    const tagMeta = tagRecords.map(tag => ({
+      id: tag.id,
+      name: tag.name,
+      min: tag.min,
+      max: tag.max,
+      comment: tag.comment,
+      unit_of_measurement: tag.unit_of_measurement
+    }));
+
+    return { edgeIds, tags, tagMeta };
+  }
+
+  async getCurrentByTags(edgeId: string, tagIds: string[], includeChildren: boolean = true) {
+    const edgeIds = includeChildren ? await this.getDescendantEdgeIds(edgeId) : [edgeId];
+    const uniqueTagIds = Array.from(new Set(tagIds.filter(Boolean)));
+    if (!uniqueTagIds.length) {
+      return { edgeIds, tags: [], tagMeta: [] };
+    }
+
+    const edgeTagLinks = await this.prisma.edge_tag.findMany({
+      where: {
+        edge_id: { in: edgeIds },
+        tag_id: { in: uniqueTagIds }
+      },
+      select: { edge_id: true, tag_id: true }
+    });
+
+    if (!edgeTagLinks.length) {
+      return { edgeIds, tags: [], tagMeta: [] };
+    }
+
+    const allowedByEdge = new Map<string, Set<string>>();
+    edgeTagLinks.forEach(link => {
+      if (!allowedByEdge.has(link.edge_id)) {
+        allowedByEdge.set(link.edge_id, new Set());
+      }
+      allowedByEdge.get(link.edge_id)!.add(link.tag_id);
+    });
+
+    const allowedTagIds = new Set(edgeTagLinks.map(link => link.tag_id));
+
+    const [currentRecords, tagRecords] = await Promise.all([
+      this.prisma.current.findMany({
+        where: {
+          edge: { in: edgeIds },
+          tag: { in: Array.from(allowedTagIds) }
+        },
+        select: {
+          edge: true,
+          tag: true,
+          value: true
+        }
+      }),
+      this.prisma.tag.findMany({
+        where: {
+          id: { in: Array.from(allowedTagIds) }
+        }
+      })
+    ]);
+
+    const tagsMap = new Map(tagRecords.map(tag => [tag.id, tag]));
+    const tags = currentRecords.filter(record => {
+      const allowed = allowedByEdge.get(record.edge);
+      return allowed ? allowed.has(record.tag) : false;
+    }).map(record => {
+      const tagInfo = tagsMap.get(record.tag);
+      return {
+        edge: record.edge,
+        tag: record.tag,
+        value: record.value,
+        name: tagInfo?.name,
+        min: tagInfo?.min,
+        max: tagInfo?.max,
+        comment: tagInfo?.comment,
+        unit_of_measurement: tagInfo?.unit_of_measurement
+      };
+    });
+
+    const tagMeta = tagRecords.map(tag => ({
+      id: tag.id,
+      name: tag.name,
+      min: tag.min,
+      max: tag.max,
+      comment: tag.comment,
+      unit_of_measurement: tag.unit_of_measurement
+    }));
+
+    return { edgeIds, tags, tagMeta };
+  }
+
   async create(createEdgeDto: CreateEdgeDto) {
     // Validate parent exists if parent_id is provided
     if (createEdgeDto.parent_id) {
