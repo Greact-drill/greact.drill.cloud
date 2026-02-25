@@ -11,6 +11,26 @@ export class IngestService {
     return this.prisma.$transaction(async (prisma) => {
       const historyResults = [];
       const currentResults = [];
+      const uniqueTagIds = Array.from(new Set(data.map(item => item.tag).filter(Boolean)));
+
+      if (uniqueTagIds.length) {
+        await Promise.all(
+          uniqueTagIds.map(tagId =>
+            prisma.tag.upsert({
+              where: { id: tagId },
+              update: {},
+              create: {
+                id: tagId,
+                name: tagId,
+                min: 0,
+                max: 100,
+                comment: 'Auto-created by ingest',
+                unit_of_measurement: 'N/A',
+              },
+            })
+          )
+        );
+      }
 
       for (const item of data) {
         // Конвертируем timestamp из числа в Date

@@ -24,13 +24,13 @@ model History {
   value     Float
   createdAt DateTime @default(now())
 
-  @@schema("public")
   @@index([edge])
   @@index([timestamp])
   @@index([tag])
   @@index([edge, tag])
   @@index([edge, timestamp])
   @@map("history")
+  @@schema("public")
 }
 
 model Current {
@@ -41,62 +41,49 @@ model Current {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@schema("public")
   @@unique([edge, tag])
   @@index([edge])
   @@index([tag])
   @@map("current")
+  @@schema("public")
 }
 
 model Edge {
-  id        String   @id @db.VarChar(100)
+  id        String  @id @db.VarChar(100)
   name      String
-  parent_id String?  @db.VarChar(100)
-  
+  parent_id String? @db.VarChar(100)
+
   // Self-referential relation for hierarchy
-  parent    Edge?    @relation("EdgeToParent", fields: [parent_id], references: [id])
-  children  Edge[]   @relation("EdgeToParent")
-  
+  parent   Edge?  @relation("EdgeToParent", fields: [parent_id], references: [id])
+  children Edge[] @relation("EdgeToParent")
+
   // Customizations
   edge_customizations edge_customization[]
   tag_customizations  tag_customization[]
-  
-  // Relations
-  edge_tags           edge_tag[]  // Added this back-reference
 
-  @@schema("public")
+  // Relations
+  tags Tag[]
+
   @@index([name])
   @@index([parent_id])
   @@map("edge")
+  @@schema("public")
 }
 
 model Tag {
-  id                  String @id @db.VarChar(100)
+  id                  String              @id @db.VarChar(100)
   name                String
   min                 Int
   max                 Int
   comment             String
   unit_of_measurement String
   tag_customizations  tag_customization[]
-  
-  // Relations
-  edge_tags           edge_tag[]  // Added this back-reference
 
-  @@schema("public")
+  // Relations
+  edges Edge[]
+
   @@index([name])
   @@map("tag")
-}
-
-model edge_tag {
-  edge_id String @db.VarChar(100)
-  tag_id  String @db.VarChar(100)
-
-  edge Edge @relation(fields: [edge_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  tag  Tag  @relation(fields: [tag_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
-
-  @@id([edge_id, tag_id])
-  @@index([tag_id])
-  @@map("edge_tag")
   @@schema("public")
 }
 
@@ -105,28 +92,28 @@ model edge_tag {
 // ------------------------------------
 
 model edge_customization {
-  id         Int    @id @default(autoincrement())
-  edge_id    String @db.VarChar(100)
-  key        String
-  value      String
-  edge       Edge   @relation(fields: [edge_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  id      Int    @id @default(autoincrement())
+  edge_id String @db.VarChar(100)
+  key     String
+  value   String
+  edge    Edge   @relation(fields: [edge_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
-  @@schema("frontend")
   @@unique([edge_id, key])
   @@index([edge_id])
   @@map("edge_customization")
+  @@schema("frontend")
 }
 
 model tag_customization {
-  id         Int    @id @default(autoincrement())
-  edge_id    String @db.VarChar(100)
-  tag_id     String @db.VarChar(100)
-  key        String
-  value      String
-  edge       Edge   @relation(fields: [edge_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  tag        Tag    @relation(fields: [tag_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  id      Int    @id @default(autoincrement())
+  edge_id String @db.VarChar(100)
+  tag_id  String @db.VarChar(100)
+  key     String
+  value   String
+  edge    Edge   @relation(fields: [edge_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  tag     Tag    @relation(fields: [tag_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
-  @@schema("frontend")
   @@unique([edge_id, tag_id, key])
   @@map("tag_customization")
+  @@schema("frontend")
 }

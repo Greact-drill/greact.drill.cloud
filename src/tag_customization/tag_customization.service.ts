@@ -13,12 +13,13 @@ export class TagCustomizationService {
         data: createTagCustomizationDto,
       });
 
-      await tx.edge_tag.createMany({
-        data: [{
-          edge_id: createTagCustomizationDto.edge_id,
-          tag_id: createTagCustomizationDto.tag_id
-        }],
-        skipDuplicates: true
+      await tx.tag.update({
+        where: { id: createTagCustomizationDto.tag_id },
+        data: {
+          edges: {
+            connect: [{ id: createTagCustomizationDto.edge_id }]
+          }
+        }
       });
 
       return customization;

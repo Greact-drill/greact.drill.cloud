@@ -7,15 +7,18 @@ import { PrismaService } from '../prisma.service';
 export class TagService {
   constructor(private prisma: PrismaService) {}
   
-    private async assertEdgesExist(edgeIds: string[]) {
+    private async assertEdgesExist(edgeIds: string[], options?: { allowEmpty?: boolean }) {
       const uniqueEdgeIds = Array.from(new Set(edgeIds));
       if (!uniqueEdgeIds.length) {
+        if (options?.allowEmpty) {
+          return [];
+        }
         throw new BadRequestException('edge_ids must contain at least one edge id.');
       }
 
       const edges = await this.prisma.edge.findMany({
         where: { id: { in: uniqueEdgeIds } },
-        select: { id: true }
+        select: { id: true, parent_id: true }
       });
 
       if (edges.length !== uniqueEdgeIds.length) {
@@ -24,11 +27,20 @@ export class TagService {
         throw new NotFoundException(`Edges not found: ${missing.join(', ')}`);
       }
 
+      const rootEdgeIds = edges
+        .filter(edge => edge.parent_id === null)
+        .map(edge => edge.id);
+      if (rootEdgeIds.length) {
+        throw new BadRequestException(
+          `Tags can only be assigned to block edges. Root edges are not allowed: ${rootEdgeIds.join(', ')}`
+        );
+      }
+
       return uniqueEdgeIds;
     }
 
     private mapTagWithEdges(tag: any, edgeIds: string[]) {
-      const { edge_tags, ...rest } = tag;
+      const { edges, ...rest } = tag;
       return {
         ...rest,
         edge_ids: edgeIds
@@ -37,7 +49,7 @@ export class TagService {
 
     async create(createTagDto: CreateTagDto) {
       const { edge_ids, ...tagData } = createTagDto;
-      const uniqueEdgeIds = await this.assertEdgesExist(edge_ids);
+      const uniqueEdgeIds = await this.assertEdgesExist(edge_ids ?? [], { allowEmpty: true });
 
       return this.prisma.$transaction(async tx => {
         const tag = await tx.tag.upsert({
@@ -49,17 +61,17 @@ export class TagService {
             min: tagData.min,
             max: tagData.max,
             comment: tagData.comment,
-            unit_of_measurement: tagData.unit_of_measurement
+            unit_of_measurement: tagData.unit_of_measurement,
+            edges: {
+              set: uniqueEdgeIds.map(edgeId => ({ id: edgeId }))
+            }
           },
-          create: tagData,
-        });
-
-        await tx.edge_tag.createMany({
-          data: uniqueEdgeIds.map(edgeId => ({
-            edge_id: edgeId,
-            tag_id: tag.id
-          })),
-          skipDuplicates: true
+          create: {
+            ...tagData,
+            edges: {
+              connect: uniqueEdgeIds.map(edgeId => ({ id: edgeId }))
+            }
+          },
         });
 
         return this.mapTagWithEdges(tag, uniqueEdgeIds);
@@ -70,15 +82,15 @@ export class TagService {
     const tags = await this.prisma.tag.findMany({
       orderBy: [{ id: 'asc' }],
       include: {
-        edge_tags: {
-          select: { edge_id: true }
+        edges: {
+          select: { id: true }
         }
       }
     });
 
     return tags.map(tag => this.mapTagWithEdges(
       tag,
-      tag.edge_tags.map(edgeTag => edgeTag.edge_id)
+      tag.edges.map(edge => edge.id)
     ));
   }
 
@@ -86,8 +98,8 @@ export class TagService {
     const tag = await this.prisma.tag.findUnique({
       where: { id },
       include: {
-        edge_tags: {
-          select: { edge_id: true }
+        edges: {
+          select: { id: true }
         }
       }
     });
@@ -98,7 +110,7 @@ export class TagService {
 
     return this.mapTagWithEdges(
       tag,
-      tag.edge_tags.map(edgeTag => edgeTag.edge_id)
+      tag.edges.map(edge => edge.id)
     );
   }
 
@@ -106,36 +118,31 @@ export class TagService {
     const { edge_ids, ...tagData } = updateTagDto as UpdateTagDto & { edge_ids?: string[] };
 
     return this.prisma.$transaction(async tx => {
-      const tag = await tx.tag.update({
-        where: { id },
-        data: tagData,
-      });
-
       if (edge_ids !== undefined) {
-        const uniqueEdgeIds = await this.assertEdgesExist(edge_ids);
-        await tx.edge_tag.deleteMany({
-          where: { tag_id: id }
-        });
-        await tx.edge_tag.createMany({
-          data: uniqueEdgeIds.map(edgeId => ({
-            edge_id: edgeId,
-            tag_id: id
-          })),
-          skipDuplicates: true
+        const uniqueEdgeIds = await this.assertEdgesExist(edge_ids, { allowEmpty: true });
+        const tag = await tx.tag.update({
+          where: { id },
+          data: {
+            ...tagData,
+            edges: {
+              set: uniqueEdgeIds.map(edgeId => ({ id: edgeId }))
+            }
+          },
         });
 
         return this.mapTagWithEdges(tag, uniqueEdgeIds);
       }
 
-      const existingEdges = await tx.edge_tag.findMany({
-        where: { tag_id: id },
-        select: { edge_id: true }
+      const tag = await tx.tag.update({
+        where: { id },
+        data: tagData,
+        include: {
+          edges: {
+            select: { id: true }
+          }
+        }
       });
-
-      return this.mapTagWithEdges(
-        tag,
-        existingEdges.map(edgeTag => edgeTag.edge_id)
-      );
+      return this.mapTagWithEdges(tag, tag.edges.map(edge => edge.id));
     });
   }
 
@@ -145,8 +152,7 @@ export class TagService {
     })
   }
 
-  async upsertTagsFromApi(tagIds: string[], edgeId: string) {
-    await this.assertEdgesExist([edgeId]);
+  async upsertTagsFromApi(tagIds: string[]) {
     const promises = tagIds.map(tagId => {
       return this.prisma.tag.upsert({
         where: { id: tagId },
@@ -163,16 +169,6 @@ export class TagService {
       });
     });
 
-    const tags = await Promise.all(promises);
-
-    await this.prisma.edge_tag.createMany({
-      data: tags.map(tag => ({
-        edge_id: edgeId,
-        tag_id: tag.id
-      })),
-      skipDuplicates: true
-    });
-
-    return tags;
+    return Promise.all(promises);
   }
 }

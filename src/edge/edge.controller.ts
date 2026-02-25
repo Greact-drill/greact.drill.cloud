@@ -61,6 +61,14 @@ export class EdgeController {
     return this.edgeService.getScopedCurrent(edgeId, include);
   }
 
+  @Get(':edgeId/block/:blockId/scoped-current')
+  async getScopedCurrentByEdgeAndBlock(
+    @Param('edgeId') edgeId: string,
+    @Param('blockId') blockId: string
+  ) {
+    return this.edgeService.getScopedCurrentByEdgeAndBlock(edgeId, blockId);
+  }
+
   @Post(':edgeId/current-by-tags')
   async getCurrentByTags(
     @Param('edgeId') edgeId: string,

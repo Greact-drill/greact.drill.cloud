@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateEdgeDto } from './dto/create-edge.dto';
 import { UpdateEdgeDto } from './dto/update-edge.dto';
 import { PrismaService } from '../prisma.service';
@@ -6,6 +6,89 @@ import { PrismaService } from '../prisma.service';
 @Injectable()
 export class EdgeService {
   constructor(private prisma: PrismaService) {}
+
+  async getScopedCurrentByEdgeAndBlock(edgeId: string, blockId: string) {
+    const [edge, block] = await Promise.all([
+      this.prisma.edge.findUnique({
+        where: { id: edgeId },
+        select: { id: true, parent_id: true }
+      }),
+      this.prisma.edge.findUnique({
+        where: { id: blockId },
+        select: { id: true, parent_id: true }
+      })
+    ]);
+
+    if (!edge) {
+      throw new NotFoundException(`Edge with ID "${edgeId}" not found`);
+    }
+    if (!block) {
+      throw new NotFoundException(`Block edge with ID "${blockId}" not found`);
+    }
+    if (block.parent_id !== edgeId) {
+      throw new BadRequestException(
+        `Block "${blockId}" does not belong to edge "${edgeId}".`
+      );
+    }
+
+    const blockWithTags = await this.prisma.edge.findUnique({
+      where: { id: blockId },
+      select: {
+        tags: {
+          select: { id: true }
+        }
+      }
+    });
+    const allowedTagIds = (blockWithTags?.tags ?? []).map(tag => tag.id);
+    if (!allowedTagIds.length) {
+      return { edgeIds: [edgeId], tags: [], tagMeta: [] };
+    }
+
+    const [currentRecords, tagRecords] = await Promise.all([
+      this.prisma.current.findMany({
+        where: {
+          edge: edgeId,
+          tag: { in: allowedTagIds }
+        },
+        select: {
+          edge: true,
+          tag: true,
+          value: true
+        }
+      }),
+      this.prisma.tag.findMany({
+        where: {
+          id: { in: allowedTagIds }
+        }
+      })
+    ]);
+
+    const tagsMap = new Map(tagRecords.map(tag => [tag.id, tag]));
+    const tags = currentRecords.map(record => {
+      const tagInfo = tagsMap.get(record.tag);
+      return {
+        edge: blockId,
+        tag: record.tag,
+        value: record.value,
+        name: tagInfo?.name,
+        min: tagInfo?.min,
+        max: tagInfo?.max,
+        comment: tagInfo?.comment,
+        unit_of_measurement: tagInfo?.unit_of_measurement
+      };
+    });
+
+    const tagMeta = tagRecords.map(tag => ({
+      id: tag.id,
+      name: tag.name,
+      min: tag.min,
+      max: tag.max,
+      comment: tag.comment,
+      unit_of_measurement: tag.unit_of_measurement
+    }));
+
+    return { edgeIds: [edgeId], tags, tagMeta };
+  }
 
   private async getDescendantEdgeIds(edgeId: string): Promise<string[]> {
     const edges = await this.prisma.edge.findMany({
@@ -111,20 +194,25 @@ export class EdgeService {
       return { edgeIds, tags: [], tagMeta: [] };
     }
 
-    const edgeTagLinks = await this.prisma.edge_tag.findMany({
-      where: {
-        edge_id: { in: edgeIds },
-        tag_id: { in: Array.from(allowedTagIds) }
-      },
-      select: { edge_id: true, tag_id: true }
+    const edgesWithTags = await this.prisma.edge.findMany({
+      where: { id: { in: edgeIds } },
+      select: {
+        id: true,
+        tags: {
+          where: {
+            id: { in: Array.from(allowedTagIds) }
+          },
+          select: { id: true }
+        }
+      }
     });
 
     const allowedByEdgeTag = new Map<string, Set<string>>();
-    edgeTagLinks.forEach(link => {
-      if (!allowedByEdgeTag.has(link.edge_id)) {
-        allowedByEdgeTag.set(link.edge_id, new Set());
-      }
-      allowedByEdgeTag.get(link.edge_id)!.add(link.tag_id);
+    edgesWithTags.forEach(edgeWithTags => {
+      allowedByEdgeTag.set(
+        edgeWithTags.id,
+        new Set(edgeWithTags.tags.map(tag => tag.id))
+      );
     });
 
     allowedTagsByEdge.forEach((tagIds, edge) => {
@@ -208,27 +296,36 @@ export class EdgeService {
       return { edgeIds, tags: [], tagMeta: [] };
     }
 
-    const edgeTagLinks = await this.prisma.edge_tag.findMany({
+    const edgesWithTags = await this.prisma.edge.findMany({
       where: {
-        edge_id: { in: edgeIds },
-        tag_id: { in: uniqueTagIds }
+        id: { in: edgeIds }
       },
-      select: { edge_id: true, tag_id: true }
+      select: {
+        id: true,
+        tags: {
+          where: {
+            id: { in: uniqueTagIds }
+          },
+          select: { id: true }
+        }
+      }
     });
-
-    if (!edgeTagLinks.length) {
+    const hasAnyLinks = edgesWithTags.some(edgeWithTags => edgeWithTags.tags.length > 0);
+    if (!hasAnyLinks) {
       return { edgeIds, tags: [], tagMeta: [] };
     }
 
     const allowedByEdge = new Map<string, Set<string>>();
-    edgeTagLinks.forEach(link => {
-      if (!allowedByEdge.has(link.edge_id)) {
-        allowedByEdge.set(link.edge_id, new Set());
-      }
-      allowedByEdge.get(link.edge_id)!.add(link.tag_id);
+    edgesWithTags.forEach(edgeWithTags => {
+      allowedByEdge.set(
+        edgeWithTags.id,
+        new Set(edgeWithTags.tags.map(tag => tag.id))
+      );
     });
 
-    const allowedTagIds = new Set(edgeTagLinks.map(link => link.tag_id));
+    const allowedTagIds = new Set(
+      edgesWithTags.flatMap(edgeWithTags => edgeWithTags.tags.map(tag => tag.id))
+    );
 
     const [currentRecords, tagRecords] = await Promise.all([
       this.prisma.current.findMany({
