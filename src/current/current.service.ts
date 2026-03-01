@@ -64,15 +64,13 @@ export class CurrentService {
 
   // Дополнительные методы для работы с текущими значениями
   async findByEdge(edge: string) {
-    const edgeRecord = await this.prisma.edge.findUnique({
+    const edgeRecord = await (this.prisma.edge as any).findUnique({
       where: { id: edge },
       select: {
-        tags: {
-          select: { id: true }
-        }
+        tag_ids: true
       }
-    });
-    const allowedTagIds = (edgeRecord?.tags ?? []).map(tag => tag.id);
+    }) as { tag_ids?: string[] } | null;
+    const allowedTagIds = edgeRecord?.tag_ids ?? [];
     if (!allowedTagIds.length) {
       return [];
     }
@@ -96,15 +94,13 @@ export class CurrentService {
 
   // Получить текущие значения для указанного edge в формате { tag: value }
   async findCurrentByEdge(edge: string): Promise<Record<string, number>> {
-    const edgeRecord = await this.prisma.edge.findUnique({
+    const edgeRecord = await (this.prisma.edge as any).findUnique({
       where: { id: edge },
       select: {
-        tags: {
-          select: { id: true }
-        }
+        tag_ids: true
       }
-    });
-    const allowedTagIds = (edgeRecord?.tags ?? []).map(tag => tag.id);
+    }) as { tag_ids?: string[] } | null;
+    const allowedTagIds = edgeRecord?.tag_ids ?? [];
     if (!allowedTagIds.length) {
       return {};
     }
@@ -130,15 +126,13 @@ export class CurrentService {
   }
 
     async findCurrentByEdgeWithTags(edge: string): Promise<CurrentValueWithTag[]> {
-    const edgeRecord = await this.prisma.edge.findUnique({
+    const edgeRecord = await (this.prisma.edge as any).findUnique({
       where: { id: edge },
       select: {
-        tags: {
-          select: { id: true }
-        }
+        tag_ids: true
       }
-    });
-    const allowedTagIds = (edgeRecord?.tags ?? []).map(tag => tag.id);
+    }) as { tag_ids?: string[] } | null;
+    const allowedTagIds = edgeRecord?.tag_ids ?? [];
     if (!allowedTagIds.length) {
       return [];
     }

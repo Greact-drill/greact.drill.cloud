@@ -30,7 +30,7 @@ describe('EdgeService', () => {
       .mockResolvedValueOnce({ id: 'edge-1', parent_id: null })
       .mockResolvedValueOnce({ id: 'block-1', parent_id: 'edge-1' });
     prismaMock.edge.findUnique.mockResolvedValueOnce({
-      tags: [{ id: 'tag-1' }],
+      tag_ids: ['tag-1'],
     });
     prismaMock.current.findMany.mockResolvedValue([
       { edge: 'edge-1', tag: 'tag-1', value: 10 },

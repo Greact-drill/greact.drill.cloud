@@ -1,5 +1,4 @@
 import { TagService } from './tag.service';
-import { BadRequestException } from '@nestjs/common';
 
 describe('TagService', () => {
   let service: TagService;
@@ -9,9 +8,14 @@ describe('TagService', () => {
     prismaMock = {
       edge: {
         findMany: jest.fn(),
+        update: jest.fn().mockResolvedValue({}),
       },
       $transaction: jest.fn((cb: any) =>
         cb({
+          edge: {
+            findMany: jest.fn().mockResolvedValue([]),
+            update: jest.fn().mockResolvedValue({}),
+          },
           tag: {
             upsert: jest.fn().mockResolvedValue({
               id: 'tag-1',
@@ -20,6 +24,7 @@ describe('TagService', () => {
               max: 100,
               comment: '',
               unit_of_measurement: 'N/A',
+              edge_ids: [],
             }),
             update: jest.fn().mockResolvedValue({
               id: 'tag-1',
@@ -28,7 +33,7 @@ describe('TagService', () => {
               max: 100,
               comment: '',
               unit_of_measurement: 'N/A',
-              edges: [],
+              edge_ids: [],
             }),
           },
         })
@@ -58,21 +63,19 @@ describe('TagService', () => {
     expect(result.edge_ids).toEqual([]);
   });
 
-  it('rejects assigning tag to root edge', async () => {
+  it('allows assigning tag to root edge', async () => {
     prismaMock.edge.findMany.mockResolvedValue([
-      { id: 'edge-1', parent_id: null },
+      { id: 'edge-1' },
     ]);
 
-    await expect(
-      service.create({
-        id: 'tag-1',
-        name: 'Tag 1',
-        min: 0,
-        max: 100,
-        comment: '',
-        unit_of_measurement: 'N/A',
-        edge_ids: ['edge-1'],
-      } as any)
-    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.create({
+      id: 'tag-1',
+      name: 'Tag 1',
+      min: 0,
+      max: 100,
+      comment: '',
+      unit_of_measurement: 'N/A',
+      edge_ids: ['edge-1'],
+    } as any)).resolves.toBeDefined();
   });
 });

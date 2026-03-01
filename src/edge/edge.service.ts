@@ -34,12 +34,10 @@ export class EdgeService {
     const blockWithTags = await this.prisma.edge.findUnique({
       where: { id: blockId },
       select: {
-        tags: {
-          select: { id: true }
-        }
+        tag_ids: true
       }
     });
-    const allowedTagIds = (blockWithTags?.tags ?? []).map(tag => tag.id);
+    const allowedTagIds = blockWithTags?.tag_ids ?? [];
     if (!allowedTagIds.length) {
       return { edgeIds: [edgeId], tags: [], tagMeta: [] };
     }
@@ -198,20 +196,16 @@ export class EdgeService {
       where: { id: { in: edgeIds } },
       select: {
         id: true,
-        tags: {
-          where: {
-            id: { in: Array.from(allowedTagIds) }
-          },
-          select: { id: true }
-        }
+        tag_ids: true
       }
     });
 
     const allowedByEdgeTag = new Map<string, Set<string>>();
     edgesWithTags.forEach(edgeWithTags => {
+      const filteredTagIds = edgeWithTags.tag_ids.filter(tagId => allowedTagIds.has(tagId));
       allowedByEdgeTag.set(
         edgeWithTags.id,
-        new Set(edgeWithTags.tags.map(tag => tag.id))
+        new Set(filteredTagIds)
       );
     });
 
@@ -302,29 +296,27 @@ export class EdgeService {
       },
       select: {
         id: true,
-        tags: {
-          where: {
-            id: { in: uniqueTagIds }
-          },
-          select: { id: true }
-        }
+        tag_ids: true
       }
     });
-    const hasAnyLinks = edgesWithTags.some(edgeWithTags => edgeWithTags.tags.length > 0);
+    const hasAnyLinks = edgesWithTags.some(edgeWithTags =>
+      edgeWithTags.tag_ids.some(tagId => uniqueTagIds.includes(tagId))
+    );
     if (!hasAnyLinks) {
       return { edgeIds, tags: [], tagMeta: [] };
     }
 
     const allowedByEdge = new Map<string, Set<string>>();
     edgesWithTags.forEach(edgeWithTags => {
+      const filteredTagIds = edgeWithTags.tag_ids.filter(tagId => uniqueTagIds.includes(tagId));
       allowedByEdge.set(
         edgeWithTags.id,
-        new Set(edgeWithTags.tags.map(tag => tag.id))
+        new Set(filteredTagIds)
       );
     });
 
     const allowedTagIds = new Set(
-      edgesWithTags.flatMap(edgeWithTags => edgeWithTags.tags.map(tag => tag.id))
+      edgesWithTags.flatMap(edgeWithTags => edgeWithTags.tag_ids).filter(tagId => uniqueTagIds.includes(tagId))
     );
 
     const [currentRecords, tagRecords] = await Promise.all([
@@ -430,16 +422,80 @@ export class EdgeService {
     });
   }
 
+  async getEdgeTagCustomizations(edgeId: string) {
+    const edge = await this.prisma.edge.findUnique({
+      where: { id: edgeId },
+      select: { id: true, name: true, tag_ids: true }
+    });
+    if (!edge) {
+      throw new NotFoundException(`Edge with ID "${edgeId}" not found`);
+    }
+    const tagIds = edge.tag_ids ?? [];
+    if (!tagIds.length) {
+      return { edge: { id: edge.id, name: edge.name, tag_ids: [] }, tags: [], customizations: [] };
+    }
+
+    const [tags, customizations] = await Promise.all([
+      this.prisma.tag.findMany({
+        where: { id: { in: tagIds } },
+        select: { id: true, name: true, min: true, max: true, comment: true, unit_of_measurement: true }
+      }),
+      this.prisma.tag_customization.findMany({
+        where: {
+          edge_id: edgeId,
+          tag_id: { in: tagIds }
+        },
+        orderBy: [{ tag_id: 'asc' }, { key: 'asc' }]
+      })
+    ]);
+
+    return {
+      edge: { id: edge.id, name: edge.name, tag_ids: tagIds },
+      tags,
+      customizations: customizations.map(c => ({ tag_id: c.tag_id, key: c.key, value: c.value }))
+    };
+  }
+
+  /**
+   * Возвращает edge_id для поиска в таблице current.
+   * По бизнес-логике все теги с одной буровой приходят с одним ключом (родительский edge).
+   * Для блоков (дочерних edge) данные в current хранятся под parent_id.
+   */
+  private async getEdgeIdForCurrentLookup(
+    edgeId: string,
+    cache?: Map<string, string>
+  ): Promise<string> {
+    if (cache?.has(edgeId)) {
+      return cache.get(edgeId)!;
+    }
+    const edge = await this.prisma.edge.findUnique({
+      where: { id: edgeId },
+      select: { parent_id: true }
+    });
+    const result = edge?.parent_id ?? edgeId;
+    cache?.set(edgeId, result);
+    return result;
+  }
+
   async getWidgetConfigs(edgeId: string) {
-    // Находим все кастомизации для данного edge
+    const edge = await this.prisma.edge.findUnique({
+      where: { id: edgeId },
+      select: { tag_ids: true }
+    });
+    const allowedTagIds = edge?.tag_ids ?? [];
+    if (!allowedTagIds.length) {
+      return [];
+    }
     const customizations = await this.prisma.tag_customization.findMany({
       where: { 
         edge_id: edgeId,
+        tag_id: { in: allowedTagIds },
         key: 'widgetConfig'
       }
     });
 
-    const result = [];
+    const currentLookupEdgeId = await this.getEdgeIdForCurrentLookup(edgeId);
+    const result: any[] = [];
     
     for (const custom of customizations) {
       try {
@@ -451,7 +507,7 @@ export class EdgeService {
         const current = await this.prisma.current.findUnique({
           where: {
             edge_tag: {
-              edge: custom.edge_id,
+              edge: currentLookupEdgeId,
               tag: custom.tag_id
             }
           }
@@ -491,6 +547,7 @@ export class EdgeService {
       }
     });
 
+    const currentLookupCache = new Map<string, string>();
     const result = [];
     
     for (const custom of customizations) {
@@ -503,10 +560,11 @@ export class EdgeService {
             where: { id: custom.tag_id }
           });
           
+          const currentLookupEdgeId = await this.getEdgeIdForCurrentLookup(custom.edge_id, currentLookupCache);
           const current = await this.prisma.current.findUnique({
             where: {
               edge_tag: {
-                edge: custom.edge_id,
+                edge: currentLookupEdgeId,
                 tag: custom.tag_id
               }
             }
@@ -547,6 +605,7 @@ export class EdgeService {
       }
     });
 
+    const currentLookupCache = new Map<string, string>();
     const result = [];
     
     for (const custom of customizations) {
@@ -556,10 +615,11 @@ export class EdgeService {
           where: { id: custom.tag_id }
         });
         
+        const currentLookupEdgeId = await this.getEdgeIdForCurrentLookup(custom.edge_id, currentLookupCache);
         const current = await this.prisma.current.findUnique({
           where: {
             edge_tag: {
-              edge: custom.edge_id,
+              edge: currentLookupEdgeId,
               tag: custom.tag_id
             }
           }
@@ -632,6 +692,8 @@ export class EdgeService {
         edgeId = page.replace('MAIN_', '');
       }
 
+      const currentLookupEdgeId = await this.getEdgeIdForCurrentLookup(edgeId);
+
       for (let row = 0; row < result.rows; row++) {
         result.data[row] = {};
         for (let col = 0; col < result.cols; col++) {
@@ -642,7 +704,7 @@ export class EdgeService {
             const current = await this.prisma.current.findUnique({
               where: {
                 edge_tag: {
-                  edge: edgeId,
+                  edge: currentLookupEdgeId,
                   tag: tagId
                 }
               }

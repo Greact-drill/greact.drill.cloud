@@ -52,6 +52,7 @@ model Edge {
   id        String  @id @db.VarChar(100)
   name      String
   parent_id String? @db.VarChar(100)
+  tag_ids   String[] @default([])
 
   // Self-referential relation for hierarchy
   parent   Edge?  @relation("EdgeToParent", fields: [parent_id], references: [id])
@@ -60,9 +61,6 @@ model Edge {
   // Customizations
   edge_customizations edge_customization[]
   tag_customizations  tag_customization[]
-
-  // Relations
-  tags Tag[]
 
   @@index([name])
   @@index([parent_id])
@@ -77,10 +75,8 @@ model Tag {
   max                 Int
   comment             String
   unit_of_measurement String
+  edge_ids            String[]            @default([])
   tag_customizations  tag_customization[]
-
-  // Relations
-  edges Edge[]
 
   @@index([name])
   @@map("tag")

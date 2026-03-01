@@ -47,6 +47,11 @@ export class EdgeController {
     return this.edgeService.remove(id);
   }
 
+  @Get(':edgeId/tag-customizations')
+  async getEdgeTagCustomizations(@Param('edgeId') edgeId: string) {
+    return this.edgeService.getEdgeTagCustomizations(edgeId);
+  }
+
   @Get(':edgeId/widget-configs')
   async getWidgetConfigs(@Param('edgeId') edgeId: string) {
     return this.edgeService.getWidgetConfigs(edgeId);
