@@ -5,15 +5,14 @@
 ## Назначение
 - хранение телеметрии (`history`, `current`)
 - управление деревом оборудования (`edge`)
-- управление тегами и их связями с блоками (`tag`, `edge_tag`)
+- управление тегами и их связями с блоками (`tag` ↔ `edge`, many-to-many)
 - конфигурации UI (виджеты, таблицы, кастомизации)
 - синхронизация тегов с внешними источниками
 
 ## Схема данных (упрощенно)
 ```mermaid
 erDiagram
-  EDGE ||--o{ EDGE_TAG : binds
-  TAG  ||--o{ EDGE_TAG : binds
+  EDGE }o--o{ TAG : binds
   EDGE ||--o{ CURRENT  : has
   TAG  ||--o{ CURRENT  : has
   EDGE ||--o{ HISTORY  : has
@@ -29,7 +28,7 @@ erDiagram
 - `GET /edge/tree` — дерево блоков
 - `GET /edge/:id/children` — дочерние блоки
 - `GET /edge/:id/scoped-current` — текущие данные, отфильтрованные по разрешенным тегам
-- `POST /edge/:id/current-by-tags` — текущие данные по списку тегов (учитывает edge_tag)
+- `POST /edge/:id/current-by-tags` — текущие данные по списку тегов (учитывает связь edge↔tag)
 - `GET /edge/widget-configs/all` — все конфигурации виджетов
 - `GET /edge/page/:page/table-config` — таблица по странице
 
@@ -50,7 +49,7 @@ erDiagram
 - `GET /edge-customization` / `POST /edge-customization`
 
 ## Логика привязки тегов к блокам
-Все выдачи «текущих» значений фильтруются через таблицу `edge_tag`.
+Все выдачи «текущих» значений фильтруются через many-to-many связь `edge`↔`tag`.
 Это предотвращает отображение тегов, не принадлежащих выбранному блоку.
 
 ## Запуск

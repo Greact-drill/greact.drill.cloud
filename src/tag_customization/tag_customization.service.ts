@@ -13,13 +13,34 @@ export class TagCustomizationService {
         data: createTagCustomizationDto,
       });
 
-      await tx.edge_tag.createMany({
-        data: [{
-          edge_id: createTagCustomizationDto.edge_id,
-          tag_id: createTagCustomizationDto.tag_id
-        }],
-        skipDuplicates: true
-      });
+      const [tagRecord, edgeRecord] = await Promise.all([
+        tx.tag.findUnique({
+          where: { id: createTagCustomizationDto.tag_id },
+          select: { edge_ids: true }
+        }),
+        tx.edge.findUnique({
+          where: { id: createTagCustomizationDto.edge_id },
+          select: { tag_ids: true }
+        })
+      ]);
+
+      const nextTagEdgeIds = Array.from(
+        new Set([...(tagRecord?.edge_ids ?? []), createTagCustomizationDto.edge_id])
+      );
+      const nextEdgeTagIds = Array.from(
+        new Set([...(edgeRecord?.tag_ids ?? []), createTagCustomizationDto.tag_id])
+      );
+
+      await Promise.all([
+        tx.tag.update({
+          where: { id: createTagCustomizationDto.tag_id },
+          data: { edge_ids: nextTagEdgeIds }
+        }),
+        tx.edge.update({
+          where: { id: createTagCustomizationDto.edge_id },
+          data: { tag_ids: nextEdgeTagIds }
+        })
+      ]);
 
       return customization;
     });

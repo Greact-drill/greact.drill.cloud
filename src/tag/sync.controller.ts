@@ -33,10 +33,10 @@ export class SyncController {
         return { message: 'No tags found in the API response.', count: 0 };
       }
 
-      await this.tagService.upsertTagsFromApi(tagIds, edge);
+      await this.tagService.upsertTagsFromApi(tagIds);
 
       return { 
-        message: `Successfully upserted ${tagIds.length} tags for edge: ${edge}`, 
+        message: `Successfully upserted ${tagIds.length} tags from edge: ${edge}`, 
         count: tagIds.length 
       };
 

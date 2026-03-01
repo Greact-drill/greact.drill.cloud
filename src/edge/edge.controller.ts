@@ -47,6 +47,11 @@ export class EdgeController {
     return this.edgeService.remove(id);
   }
 
+  @Get(':edgeId/tag-customizations')
+  async getEdgeTagCustomizations(@Param('edgeId') edgeId: string) {
+    return this.edgeService.getEdgeTagCustomizations(edgeId);
+  }
+
   @Get(':edgeId/widget-configs')
   async getWidgetConfigs(@Param('edgeId') edgeId: string) {
     return this.edgeService.getWidgetConfigs(edgeId);
@@ -59,6 +64,14 @@ export class EdgeController {
   ) {
     const include = includeChildren !== 'false';
     return this.edgeService.getScopedCurrent(edgeId, include);
+  }
+
+  @Get(':edgeId/block/:blockId/scoped-current')
+  async getScopedCurrentByEdgeAndBlock(
+    @Param('edgeId') edgeId: string,
+    @Param('blockId') blockId: string
+  ) {
+    return this.edgeService.getScopedCurrentByEdgeAndBlock(edgeId, blockId);
   }
 
   @Post(':edgeId/current-by-tags')
