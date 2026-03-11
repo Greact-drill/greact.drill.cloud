@@ -196,7 +196,7 @@ export class CurrentService {
         max: tagInfo?.max,
         comment: tagInfo?.comment,
         unit_of_measurement: tagInfo?.unit_of_measurement,
-        precision: tagInfo?.precision,
+        precision: tagInfo?.precision ?? undefined,
         customization: customInfo,
       };
     });
