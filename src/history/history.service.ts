@@ -166,6 +166,7 @@ export class HistoryService {
       max: tagInfo?.max,
       comment: tagInfo?.comment,
       unit_of_measurement: tagInfo?.unit_of_measurement,
+      precision: tagInfo?.precision,
       history: groupedHistory[tagId].map(h => ({
         timestamp: h.timestamp,
         value: h.value,

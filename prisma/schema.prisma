@@ -75,6 +75,7 @@ model Tag {
   max                 Int
   comment             String
   unit_of_measurement String
+  precision           Int?                // Количество цифр после запятой (для числовых тегов, кроме boolean)
   edge_ids            String[]            @default([])
   tag_customizations  tag_customization[]
 

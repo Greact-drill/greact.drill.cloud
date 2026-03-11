@@ -72,7 +72,8 @@ export class EdgeService {
         min: tagInfo?.min,
         max: tagInfo?.max,
         comment: tagInfo?.comment,
-        unit_of_measurement: tagInfo?.unit_of_measurement
+        unit_of_measurement: tagInfo?.unit_of_measurement,
+        precision: tagInfo?.precision
       };
     });
 
@@ -82,7 +83,8 @@ export class EdgeService {
       min: tag.min,
       max: tag.max,
       comment: tag.comment,
-      unit_of_measurement: tag.unit_of_measurement
+      unit_of_measurement: tag.unit_of_measurement,
+      precision: tag.precision
     }));
 
     return { edgeIds: [edgeId], tags, tagMeta };
@@ -267,7 +269,8 @@ export class EdgeService {
         min: tagInfo?.min,
         max: tagInfo?.max,
         comment: tagInfo?.comment,
-        unit_of_measurement: tagInfo?.unit_of_measurement
+        unit_of_measurement: tagInfo?.unit_of_measurement,
+        precision: tagInfo?.precision
       };
     });
 
@@ -277,7 +280,8 @@ export class EdgeService {
       min: tag.min,
       max: tag.max,
       comment: tag.comment,
-      unit_of_measurement: tag.unit_of_measurement
+      unit_of_measurement: tag.unit_of_measurement,
+      precision: tag.precision
     }));
 
     return { edgeIds, tags, tagMeta };
@@ -352,7 +356,8 @@ export class EdgeService {
         min: tagInfo?.min,
         max: tagInfo?.max,
         comment: tagInfo?.comment,
-        unit_of_measurement: tagInfo?.unit_of_measurement
+        unit_of_measurement: tagInfo?.unit_of_measurement,
+        precision: tagInfo?.precision
       };
     });
 
@@ -362,7 +367,8 @@ export class EdgeService {
       min: tag.min,
       max: tag.max,
       comment: tag.comment,
-      unit_of_measurement: tag.unit_of_measurement
+      unit_of_measurement: tag.unit_of_measurement,
+      precision: tag.precision
     }));
 
     return { edgeIds, tags, tagMeta };
@@ -438,7 +444,7 @@ export class EdgeService {
     const [tags, customizations] = await Promise.all([
       this.prisma.tag.findMany({
         where: { id: { in: tagIds } },
-        select: { id: true, name: true, min: true, max: true, comment: true, unit_of_measurement: true }
+        select: { id: true, name: true, min: true, max: true, comment: true, unit_of_measurement: true, precision: true }
       }),
       this.prisma.tag_customization.findMany({
         where: {
@@ -524,7 +530,8 @@ export class EdgeService {
             comment: tag?.comment,
             unit_of_measurement: tag?.unit_of_measurement,
             min: tag?.min,
-            max: tag?.max
+            max: tag?.max,
+            precision: tag?.precision
           },
           current: current ? {
             value: current.value,
@@ -581,7 +588,8 @@ export class EdgeService {
               comment: tag?.comment,
               unit_of_measurement: tag?.unit_of_measurement,
               min: tag?.min,
-              max: tag?.max
+              max: tag?.max,
+              precision: tag?.precision
             },
             current: current ? {
               value: current.value,
@@ -636,7 +644,8 @@ export class EdgeService {
             comment: tag?.comment,
             unit_of_measurement: tag?.unit_of_measurement,
             min: tag?.min,
-            max: tag?.max
+            max: tag?.max,
+            precision: tag?.precision
           },
           current: current ? {
             value: current.value,
@@ -722,7 +731,8 @@ export class EdgeService {
                 comment: tag.comment,
                 unit_of_measurement: tag.unit_of_measurement,
                 min: tag.min,
-                max: tag.max
+                max: tag.max,
+                precision: tag.precision
               } : null,
               updatedAt: current?.updatedAt ?? null
             };
