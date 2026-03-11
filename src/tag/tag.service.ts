@@ -89,10 +89,12 @@ export class TagService {
             max: tagData.max,
             comment: tagData.comment,
             unit_of_measurement: tagData.unit_of_measurement,
+            precision: tagData.precision ?? undefined,
             edge_ids: uniqueEdgeIds,
           },
           create: {
             ...tagData,
+            precision: tagData.precision ?? undefined,
             edge_ids: uniqueEdgeIds,
           },
         });

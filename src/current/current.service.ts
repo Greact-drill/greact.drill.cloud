@@ -11,6 +11,7 @@ type CurrentValueWithTag = {
   max?: number;
   comment?: string;
   unit_of_measurement?: string;
+  precision?: number;
 }
 
 type CustomizationItem = {
@@ -195,6 +196,7 @@ export class CurrentService {
         max: tagInfo?.max,
         comment: tagInfo?.comment,
         unit_of_measurement: tagInfo?.unit_of_measurement,
+        precision: tagInfo?.precision,
         customization: customInfo,
       };
     });

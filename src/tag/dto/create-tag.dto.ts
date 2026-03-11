@@ -1,4 +1,4 @@
-import { IsArray, IsOptional, IsString, IsNotEmpty, IsNumber } from 'class-validator';
+import { IsArray, IsOptional, IsString, IsNotEmpty, IsNumber, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateTagDto {
@@ -25,6 +25,13 @@ export class CreateTagDto {
 
     @IsString()
     unit_of_measurement: string;
+
+    @IsOptional()
+    @Type(() => Number)
+    @IsNumber()
+    @Min(0)
+    @Max(10)
+    precision?: number;
 
     @IsOptional()
     @IsArray()
