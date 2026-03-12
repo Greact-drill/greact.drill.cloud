@@ -43,6 +43,14 @@ export class IngestService {
         // Конвертируем timestamp из числа в Date
         const timestampDate = new Date(item.timestamp);
 
+        // Получаем предыдущее значение ДО обновления (для проверки перехода в аварию)
+        const prevCurrent = await prisma.current.findUnique({
+          where: {
+            edge_tag: { edge: item.edge, tag: item.tag },
+          },
+          select: { value: true },
+        });
+
         // Сохраняем в таблицу History
         const historyRecord = await prisma.history.create({
           data: {
@@ -74,12 +82,15 @@ export class IngestService {
         });
         currentResults.push(currentRecord);
 
-        // Запись в журнал аварий при выходе за min/max
+        // Запись в журнал только при ПЕРЕХОДЕ в аварию (предыдущее значение было в норме)
         const tagMeta = tagMap.get(item.tag);
         if (tagMeta && typeof item.value === 'number') {
           const minVal = Number(tagMeta.min);
           const maxVal = Number(tagMeta.max);
-          if (item.value < minVal) {
+          const prevInRange = prevCurrent != null && prevCurrent.value >= minVal && prevCurrent.value <= maxVal;
+          const prevUnknown = prevCurrent == null;
+
+          if (item.value < minVal && (prevInRange || prevUnknown)) {
             await prisma.tagAlarmLog.create({
               data: {
                 edge_id: item.edge,
@@ -93,7 +104,7 @@ export class IngestService {
                 timestamp: timestampDate,
               },
             });
-          } else if (item.value > maxVal) {
+          } else if (item.value > maxVal && (prevInRange || prevUnknown)) {
             await prisma.tagAlarmLog.create({
               data: {
                 edge_id: item.edge,
