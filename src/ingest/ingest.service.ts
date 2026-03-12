@@ -32,6 +32,13 @@ export class IngestService {
         );
       }
 
+      // Загружаем метаданные тегов для проверки аварий
+      const tagRecords = await prisma.tag.findMany({
+        where: { id: { in: uniqueTagIds } },
+        select: { id: true, name: true, min: true, max: true, unit_of_measurement: true },
+      });
+      const tagMap = new Map(tagRecords.map((t) => [t.id, t]));
+
       for (const item of data) {
         // Конвертируем timestamp из числа в Date
         const timestampDate = new Date(item.timestamp);
@@ -66,6 +73,42 @@ export class IngestService {
           },
         });
         currentResults.push(currentRecord);
+
+        // Запись в журнал аварий при выходе за min/max
+        const tagMeta = tagMap.get(item.tag);
+        if (tagMeta && typeof item.value === 'number') {
+          const minVal = Number(tagMeta.min);
+          const maxVal = Number(tagMeta.max);
+          if (item.value < minVal) {
+            await prisma.tagAlarmLog.create({
+              data: {
+                edge_id: item.edge,
+                tag_id: item.tag,
+                tag_name: tagMeta.name,
+                value: item.value,
+                min_limit: minVal,
+                max_limit: maxVal,
+                alarm_type: 'min',
+                unit_of_measurement: tagMeta.unit_of_measurement || 'N/A',
+                timestamp: timestampDate,
+              },
+            });
+          } else if (item.value > maxVal) {
+            await prisma.tagAlarmLog.create({
+              data: {
+                edge_id: item.edge,
+                tag_id: item.tag,
+                tag_name: tagMeta.name,
+                value: item.value,
+                min_limit: minVal,
+                max_limit: maxVal,
+                alarm_type: 'max',
+                unit_of_measurement: tagMeta.unit_of_measurement || 'N/A',
+                timestamp: timestampDate,
+              },
+            });
+          }
+        }
       }
 
       return [
