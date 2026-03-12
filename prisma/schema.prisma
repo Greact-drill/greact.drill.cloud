@@ -33,6 +33,27 @@ model History {
   @@schema("public")
 }
 
+model TagAlarmLog {
+  id                 Int      @id @default(autoincrement())
+  edge_id            String   @db.VarChar(100)
+  tag_id             String   @db.VarChar(100)
+  tag_name           String   @db.VarChar(255)
+  value              Float
+  min_limit          Float
+  max_limit          Float
+  alarm_type         String   @db.VarChar(20) // 'min' | 'max'
+  unit_of_measurement String  @db.VarChar(50)
+  timestamp          DateTime
+  createdAt          DateTime @default(now())
+
+  @@index([edge_id])
+  @@index([tag_id])
+  @@index([timestamp])
+  @@index([edge_id, timestamp])
+  @@map("tag_alarm_log")
+  @@schema("public")
+}
+
 model Current {
   id        Int      @id @default(autoincrement())
   edge      String   @db.VarChar(100)
