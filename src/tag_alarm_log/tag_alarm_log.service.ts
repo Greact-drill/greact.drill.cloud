@@ -41,8 +41,34 @@ export class TagAlarmLogService {
     return { items, total };
   }
 
-  async findByEdge(edge_id: string, limit = 100, offset = 0) {
-    return this.findAll({ edge_id, limit, offset });
+  async findByEdge(
+    edge_id: string,
+    limit = 100,
+    offset = 0,
+    filters?: { tag_name?: string; alarm_type?: string }
+  ) {
+    const where: Record<string, unknown> = { edge_id };
+    if (filters?.tag_name?.trim()) {
+      (where as { tag_name?: { contains: string; mode: string } }).tag_name = {
+        contains: filters.tag_name.trim(),
+        mode: 'insensitive',
+      };
+    }
+    if (filters?.alarm_type === 'min' || filters?.alarm_type === 'max') {
+      (where as { alarm_type?: string }).alarm_type = filters.alarm_type;
+    }
+
+    const [items, total] = await Promise.all([
+      this.prisma.tagAlarmLog.findMany({
+        where,
+        orderBy: { timestamp: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      this.prisma.tagAlarmLog.count({ where }),
+    ]);
+
+    return { items, total };
   }
 
   async findOne(id: number) {
