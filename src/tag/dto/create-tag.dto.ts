@@ -10,6 +10,10 @@ export class CreateTagDto {
     @IsString()
     name: string;
 
+    @IsOptional()
+    @IsString()
+    tag_group?: string;
+
     @Type(() => Number)
     @IsNotEmpty()
     @IsNumber()

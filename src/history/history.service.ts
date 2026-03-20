@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma.service';
 
 type HistoryGroupedWithTag = {
   name: string;
+  tag_group?: string | null;
   min?: number;
   max?: number;
   comment?: string;
@@ -162,6 +163,7 @@ export class HistoryService {
     return {
       tag: tagId,
       name: tagInfo?.name || tagId,
+      tag_group: tagInfo?.tag_group ?? null,
       min: tagInfo?.min,
       max: tagInfo?.max,
       comment: tagInfo?.comment,
