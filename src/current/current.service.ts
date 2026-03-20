@@ -7,6 +7,7 @@ type CurrentValueWithTag = {
   tag: string;
   value: number;
   name?: string;
+  tag_group?: string | null;
   min?: number;
   max?: number;
   comment?: string;
@@ -192,6 +193,7 @@ export class CurrentService {
         tag: record.tag,
         value: record.value,
         name: tagInfo?.name,
+        tag_group: tagInfo?.tag_group ?? null,
         min: tagInfo?.min,
         max: tagInfo?.max,
         comment: tagInfo?.comment,

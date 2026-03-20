@@ -92,6 +92,7 @@ model Edge {
 model Tag {
   id                  String              @id @db.VarChar(100)
   name                String
+  tag_group           String?
   min                 Int
   max                 Int
   comment             String

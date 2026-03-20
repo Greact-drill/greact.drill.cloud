@@ -85,6 +85,7 @@ export class TagService {
           },
           update: {
             name: tagData.name,
+            tag_group: tagData.tag_group ?? null,
             min: tagData.min,
             max: tagData.max,
             comment: tagData.comment,
