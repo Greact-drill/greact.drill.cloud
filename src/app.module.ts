@@ -12,6 +12,7 @@ import { TagModule } from './tag/tag.module';
 import { EdgeCustomizationModule } from './edge_customization/edge_customization.module';
 import { TagCustomizationModule } from './tag_customization/tag_customization.module';
 import { TagAlarmLogModule } from './tag_alarm_log/tag_alarm_log.module';
+import { AlarmWidgetLogModule } from './alarm_widget_log/alarm_widget_log.module';
 import { ConfigModule } from '@nestjs/config'; // Импорт
 
 @Module({
@@ -25,6 +26,7 @@ import { ConfigModule } from '@nestjs/config'; // Импорт
     EdgeCustomizationModule,
     TagCustomizationModule,
     TagAlarmLogModule,
+    AlarmWidgetLogModule,
     ConfigModule.forRoot({
       isGlobal: true,
     }),

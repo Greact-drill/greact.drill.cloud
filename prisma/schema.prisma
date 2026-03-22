@@ -54,6 +54,24 @@ model TagAlarmLog {
   @@schema("public")
 }
 
+/// Журнал срабатываний виджета «Авария» (переход значения в 1)
+model AlarmWidgetLog {
+  id        Int      @id @default(autoincrement())
+  edge_id   String   @db.VarChar(100)
+  tag_id    String   @db.VarChar(100)
+  tag_name  String   @db.VarChar(255)
+  value     Float    @default(1)
+  timestamp DateTime
+  createdAt DateTime @default(now())
+
+  @@index([edge_id])
+  @@index([tag_id])
+  @@index([timestamp])
+  @@index([edge_id, timestamp])
+  @@map("alarm_widget_log")
+  @@schema("public")
+}
+
 model Current {
   id        Int      @id @default(autoincrement())
   edge      String   @db.VarChar(100)
