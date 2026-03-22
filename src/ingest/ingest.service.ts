@@ -39,6 +39,33 @@ export class IngestService {
       });
       const tagMap = new Map(tagRecords.map((t) => [t.id, t]));
 
+      const uniquePairs = Array.from(
+        new Map(
+          data.map((d) => [`${d.edge}|${d.tag}`, { edge_id: d.edge, tag_id: d.tag }]),
+        ).values(),
+      );
+      const widgetRows =
+        uniquePairs.length > 0
+          ? await prisma.tag_customization.findMany({
+              where: {
+                key: 'widgetConfig',
+                OR: uniquePairs.map((p) => ({ edge_id: p.edge_id, tag_id: p.tag_id })),
+              },
+              select: { edge_id: true, tag_id: true, value: true },
+            })
+          : [];
+      const alarmWidgetPairSet = new Set<string>();
+      for (const row of widgetRows) {
+        try {
+          const cfg = JSON.parse(row.value) as { widgetType?: string };
+          if (cfg.widgetType === 'alarm') {
+            alarmWidgetPairSet.add(`${row.edge_id}|${row.tag_id}`);
+          }
+        } catch {
+          /* ignore invalid JSON */
+        }
+      }
+
       for (const item of data) {
         // Конвертируем timestamp из числа в Date
         const timestampDate = new Date(item.timestamp);
@@ -115,6 +142,25 @@ export class IngestService {
                 max_limit: maxVal,
                 alarm_type: 'max',
                 unit_of_measurement: tagMeta.unit_of_measurement || 'N/A',
+                timestamp: timestampDate,
+              },
+            });
+          }
+        }
+
+        const alarmKey = `${item.edge}|${item.tag}`;
+        if (alarmWidgetPairSet.has(alarmKey) && typeof item.value === 'number') {
+          const prevVal = prevCurrent?.value;
+          const nowOne = item.value === 1;
+          const wasNotOne = prevVal == null || prevVal !== 1;
+          if (nowOne && wasNotOne) {
+            const tagMeta = tagMap.get(item.tag);
+            await prisma.alarmWidgetLog.create({
+              data: {
+                edge_id: item.edge,
+                tag_id: item.tag,
+                tag_name: tagMeta?.name ?? item.tag,
+                value: 1,
                 timestamp: timestampDate,
               },
             });
