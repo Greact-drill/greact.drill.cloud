@@ -10,6 +10,13 @@ export class IngestService {
     return value === 1;
   }
 
+  private getCurrentLookupEdgeId(
+    edgeId: string,
+    edgeParentMap: Map<string, string | null>,
+  ): string {
+    return edgeParentMap.get(edgeId) ?? edgeId;
+  }
+
   async ingestData(data: IngestDataItemDto[]) {
     // Начинаем транзакцию для атомарности операций
     return this.prisma.$transaction(async (prisma) => {
@@ -48,22 +55,42 @@ export class IngestService {
           data.map((d) => [`${d.edge}|${d.tag}`, { edge_id: d.edge, tag_id: d.tag }]),
         ).values(),
       );
+
       const widgetRows =
-        uniquePairs.length > 0
+        uniqueTagIds.length > 0
           ? await prisma.tag_customization.findMany({
               where: {
                 key: 'widgetConfig',
-                OR: uniquePairs.map((p) => ({ edge_id: p.edge_id, tag_id: p.tag_id })),
+                tag_id: { in: uniqueTagIds },
               },
               select: { edge_id: true, tag_id: true, value: true },
             })
           : [];
+
+      const relevantEdgeIds = Array.from(new Set([
+        ...data.map((item) => item.edge),
+        ...widgetRows.map((row) => row.edge_id),
+      ]));
+      const edgeRows =
+        relevantEdgeIds.length > 0
+          ? await prisma.edge.findMany({
+              where: {
+                id: { in: relevantEdgeIds },
+              },
+              select: {
+                id: true,
+                parent_id: true,
+              },
+            })
+          : [];
+      const edgeParentMap = new Map(edgeRows.map((row) => [row.id, row.parent_id]));
       const alarmWidgetPairSet = new Set<string>();
       for (const row of widgetRows) {
         try {
           const cfg = JSON.parse(row.value) as { widgetType?: string };
           if (cfg.widgetType === 'alarm') {
-            alarmWidgetPairSet.add(`${row.edge_id}|${row.tag_id}`);
+            const currentLookupEdgeId = this.getCurrentLookupEdgeId(row.edge_id, edgeParentMap);
+            alarmWidgetPairSet.add(`${currentLookupEdgeId}|${row.tag_id}`);
           }
         } catch {
           /* ignore invalid JSON */
