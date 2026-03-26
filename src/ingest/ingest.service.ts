@@ -6,6 +6,10 @@ import { IngestDataItemDto } from './dto/ingest-data.dto';
 export class IngestService {
   constructor(private prisma: PrismaService) { }
 
+  private isAlarmWidgetValueActive(value: number | null | undefined): boolean {
+    return value === 1;
+  }
+
   async ingestData(data: IngestDataItemDto[]) {
     // Начинаем транзакцию для атомарности операций
     return this.prisma.$transaction(async (prisma) => {
@@ -154,9 +158,9 @@ export class IngestService {
         const alarmKey = `${item.edge}|${item.tag}`;
         if (alarmWidgetPairSet.has(alarmKey) && typeof item.value === 'number') {
           const prevVal = prevCurrent?.value;
-          const nowOne = item.value === 1;
-          const wasNotOne = prevVal == null || prevVal !== 1;
-          if (nowOne && wasNotOne) {
+          const alarmActiveNow = this.isAlarmWidgetValueActive(item.value);
+          const alarmWasInactive = prevVal == null || !this.isAlarmWidgetValueActive(prevVal);
+          if (alarmActiveNow && alarmWasInactive) {
             const tagMeta = tagMap.get(item.tag);
             await prisma.tagAlarmLog.create({
               data: {
@@ -164,7 +168,7 @@ export class IngestService {
                 tag_id: item.tag,
                 tag_name: tagMeta?.name ?? item.tag,
                 journal_type: 'alarm',
-                value: 1,
+                value: item.value,
                 min_limit: 0,
                 max_limit: 1,
                 alarm_type: 'max',
