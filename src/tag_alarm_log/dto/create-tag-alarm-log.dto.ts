@@ -13,6 +13,10 @@ export class CreateTagAlarmLogDto {
   @IsNotEmpty()
   tag_name: string;
 
+  @IsString()
+  @IsIn(['indicator', 'alarm'])
+  journal_type: 'indicator' | 'alarm';
+
   @IsNumber()
   value: number;
 

@@ -116,13 +116,15 @@ export class IngestService {
           const maxVal = Number(tagMeta.max);
           const prevInRange = prevCurrent != null && prevCurrent.value >= minVal && prevCurrent.value <= maxVal;
           const prevUnknown = prevCurrent == null;
+          const isAlarmWidgetTag = alarmWidgetPairSet.has(`${item.edge}|${item.tag}`);
 
-          if (item.value < minVal && (prevInRange || prevUnknown)) {
+          if (!isAlarmWidgetTag && item.value < minVal && (prevInRange || prevUnknown)) {
             await prisma.tagAlarmLog.create({
               data: {
                 edge_id: item.edge,
                 tag_id: item.tag,
                 tag_name: tagMeta.name,
+                journal_type: 'indicator',
                 value: item.value,
                 min_limit: minVal,
                 max_limit: maxVal,
@@ -131,12 +133,13 @@ export class IngestService {
                 timestamp: timestampDate,
               },
             });
-          } else if (item.value > maxVal && (prevInRange || prevUnknown)) {
+          } else if (!isAlarmWidgetTag && item.value > maxVal && (prevInRange || prevUnknown)) {
             await prisma.tagAlarmLog.create({
               data: {
                 edge_id: item.edge,
                 tag_id: item.tag,
                 tag_name: tagMeta.name,
+                journal_type: 'indicator',
                 value: item.value,
                 min_limit: minVal,
                 max_limit: maxVal,
@@ -155,12 +158,17 @@ export class IngestService {
           const wasNotOne = prevVal == null || prevVal !== 1;
           if (nowOne && wasNotOne) {
             const tagMeta = tagMap.get(item.tag);
-            await prisma.alarmWidgetLog.create({
+            await prisma.tagAlarmLog.create({
               data: {
                 edge_id: item.edge,
                 tag_id: item.tag,
                 tag_name: tagMeta?.name ?? item.tag,
+                journal_type: 'alarm',
                 value: 1,
+                min_limit: 0,
+                max_limit: 1,
+                alarm_type: 'max',
+                unit_of_measurement: tagMeta?.unit_of_measurement || 'N/A',
                 timestamp: timestampDate,
               },
             });
