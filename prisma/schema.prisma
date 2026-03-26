@@ -38,6 +38,7 @@ model TagAlarmLog {
   edge_id            String   @db.VarChar(100)
   tag_id             String   @db.VarChar(100)
   tag_name           String   @db.VarChar(255)
+  journal_type       String   @default("indicator") @db.VarChar(20) // 'indicator' | 'alarm'
   value              Float
   min_limit          Float
   max_limit          Float
@@ -50,6 +51,7 @@ model TagAlarmLog {
   @@index([tag_id])
   @@index([timestamp])
   @@index([edge_id, timestamp])
+  @@index([edge_id, journal_type, timestamp])
   @@map("tag_alarm_log")
   @@schema("public")
 }

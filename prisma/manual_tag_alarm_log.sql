@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS "public"."tag_alarm_log" (
     "edge_id" VARCHAR(100) NOT NULL,
     "tag_id" VARCHAR(100) NOT NULL,
     "tag_name" VARCHAR(255) NOT NULL,
+    "journal_type" VARCHAR(20) NOT NULL DEFAULT 'indicator',
     "value" DOUBLE PRECISION NOT NULL,
     "min_limit" DOUBLE PRECISION NOT NULL,
     "max_limit" DOUBLE PRECISION NOT NULL,
@@ -21,3 +22,4 @@ CREATE INDEX IF NOT EXISTS "tag_alarm_log_edge_id_idx" ON "public"."tag_alarm_lo
 CREATE INDEX IF NOT EXISTS "tag_alarm_log_tag_id_idx" ON "public"."tag_alarm_log"("tag_id");
 CREATE INDEX IF NOT EXISTS "tag_alarm_log_timestamp_idx" ON "public"."tag_alarm_log"("timestamp");
 CREATE INDEX IF NOT EXISTS "tag_alarm_log_edge_id_timestamp_idx" ON "public"."tag_alarm_log"("edge_id", "timestamp");
+CREATE INDEX IF NOT EXISTS "tag_alarm_log_edge_id_journal_type_timestamp_idx" ON "public"."tag_alarm_log"("edge_id", "journal_type", "timestamp");

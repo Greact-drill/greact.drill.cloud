@@ -13,6 +13,7 @@ export class TagAlarmLogService {
         edge_id: dto.edge_id,
         tag_id: dto.tag_id,
         tag_name: dto.tag_name,
+        journal_type: dto.journal_type,
         value: dto.value,
         min_limit: dto.min_limit,
         max_limit: dto.max_limit,
@@ -24,9 +25,12 @@ export class TagAlarmLogService {
   }
 
   async findAll(query: GetTagAlarmLogDto) {
-    const { edge_id, limit = 100, offset = 0 } = query;
+    const { edge_id, journal_type, limit = 100, offset = 0 } = query;
 
-    const where = edge_id ? { edge_id } : {};
+    const where = {
+      ...(edge_id ? { edge_id } : {}),
+      ...(journal_type ? { journal_type } : {}),
+    };
 
     const [items, total] = await Promise.all([
       this.prisma.tagAlarmLog.findMany({
@@ -45,9 +49,12 @@ export class TagAlarmLogService {
     edge_id: string,
     limit = 100,
     offset = 0,
-    filters?: { tag_name?: string; alarm_type?: string }
+    filters?: { tag_name?: string; alarm_type?: string; journal_type?: 'indicator' | 'alarm' }
   ) {
     const where: Record<string, unknown> = { edge_id };
+    if (filters?.journal_type === 'indicator' || filters?.journal_type === 'alarm') {
+      where.journal_type = filters.journal_type;
+    }
     if (filters?.tag_name?.trim()) {
       (where as { tag_name?: { contains: string; mode: string } }).tag_name = {
         contains: filters.tag_name.trim(),
