@@ -21,7 +21,7 @@ services:
 
   cloud-db:
     image: postgres:17
-    container_name: cloud-database-container
+    container_name: cloud-database-container-${BRANCH}
     restart: always
     expose:
       - '5432'
