@@ -17,7 +17,12 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       - CURRENT_API_BASE_URL=${CURRENT_API_BASE_URL}
     networks:
-      - proxy
+      proxy:
+        aliases:
+          - greact-drill-cloud-${BRANCH}
+      internal:
+        aliases:
+          - greact-drill-cloud-${BRANCH}-internal
 
   cloud-db:
     image: postgres:17
@@ -26,13 +31,16 @@ services:
     expose:
       - '5432'
     volumes:
-      - cloud-db:/var/lib/postgresql/data
+      - cloud-db-${BRANCH}:/var/lib/postgresql/data
     environment:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB}
     networks:
-      - proxy
+      internal:
+        aliases:
+          - cloud-db-${BRANCH}
+          - cloud-database-container-${BRANCH}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
@@ -41,8 +49,11 @@ services:
       start_period: 10s
 
 volumes:
-  cloud-db:
+  cloud-db-${BRANCH}:
+    name: greact-drill-cloud-db-${BRANCH}
 
 networks:
   proxy:
     external: true
+  internal:
+    name: greact-drill-cloud-${BRANCH}-internal
