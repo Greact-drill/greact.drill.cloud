@@ -50,7 +50,7 @@ services:
 
 volumes:
   cloud-db:
-    name: greact-drill-cloud-db-${BRANCH}
+    name: ${CLOUD_DB_VOLUME_NAME}
 
 networks:
   proxy:
