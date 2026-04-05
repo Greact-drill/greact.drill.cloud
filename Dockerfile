@@ -23,6 +23,10 @@ RUN npm run prisma:generate
 COPY . .
 
 ARG CURRENT_API_BASE_URL
+ARG KEYCLOAK_ISSUER_URL
+ARG KEYCLOAK_AUDIENCE
+ARG KEYCLOAK_JWKS_URL
+ARG CORS_ALLOWED_ORIGINS
 
 # 5. Собираем приложение (например, TypeScript -> JavaScript)
 RUN npm run build
