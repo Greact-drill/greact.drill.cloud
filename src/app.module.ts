@@ -1,22 +1,27 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
+import { AlarmWidgetLogModule } from './alarm_widget_log/alarm_widget_log.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { HistoryModule } from './history/history.module';
-import { CurrentModule } from './current/current.module';
-import { IngestModule } from './ingest/ingest.module';
+import { KeycloakAuthGuard } from './auth/keycloak-auth.guard';
 import { CleanupService } from './cleanup/cleanup.service';
-import { PrismaService } from './prisma.service';
+import { CurrentModule } from './current/current.module';
 import { EdgeModule } from './edge/edge.module';
-import { TagModule } from './tag/tag.module';
 import { EdgeCustomizationModule } from './edge_customization/edge_customization.module';
-import { TagCustomizationModule } from './tag_customization/tag_customization.module';
+import { HistoryModule } from './history/history.module';
+import { IngestModule } from './ingest/ingest.module';
+import { PrismaService } from './prisma.service';
+import { TagModule } from './tag/tag.module';
 import { TagAlarmLogModule } from './tag_alarm_log/tag_alarm_log.module';
-import { AlarmWidgetLogModule } from './alarm_widget_log/alarm_widget_log.module';
-import { ConfigModule } from '@nestjs/config'; // Импорт
+import { TagCustomizationModule } from './tag_customization/tag_customization.module';
 
 @Module({
   imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+    }),
     ScheduleModule.forRoot(),
     HistoryModule,
     CurrentModule,
@@ -27,11 +32,16 @@ import { ConfigModule } from '@nestjs/config'; // Импорт
     TagCustomizationModule,
     TagAlarmLogModule,
     AlarmWidgetLogModule,
-    ConfigModule.forRoot({
-      isGlobal: true,
-    }),
   ],
   controllers: [AppController],
-  providers: [AppService, CleanupService, PrismaService],
+  providers: [
+    AppService,
+    CleanupService,
+    PrismaService,
+    {
+      provide: APP_GUARD,
+      useClass: KeycloakAuthGuard,
+    },
+  ],
 })
-export class AppModule { }
+export class AppModule {}

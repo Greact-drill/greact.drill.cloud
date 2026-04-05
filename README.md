@@ -1,82 +1,30 @@
-# Drill Cloud API
+# Drill Cloud
 
-Центральный REST API для хранения, управления и выдачи телеметрии буровых установок. Построен на NestJS + Prisma + PostgreSQL. Реализует логику привязки тегов к блокам (`edge↔tag`).
+Backend API Drill на NestJS + Prisma.
 
-## Назначение
-- хранение телеметрии (`history`, `current`)
-- управление деревом оборудования (`edge`)
-- управление тегами и их связями с блоками (`tag` ↔ `edge`, many-to-many)
-- конфигурации UI (виджеты, таблицы, кастомизации)
-- синхронизация тегов с внешними источниками
+## Keycloak
+- Используется общий realm: `toir`
+- Audience/API client для этого сервиса: `drill-cloud-backend`
+- JWT проверяется через issuer + JWKS
+- Защита включается автоматически, если заданы `KEYCLOAK_ISSUER_URL` и `KEYCLOAK_AUDIENCE`
+- Публичными оставлены `GET /health` и `POST /ingest`
 
-## Схема данных (упрощенно)
-```mermaid
-erDiagram
-  EDGE }o--o{ TAG : binds
-  EDGE ||--o{ CURRENT  : has
-  TAG  ||--o{ CURRENT  : has
-  EDGE ||--o{ HISTORY  : has
-  TAG  ||--o{ HISTORY  : has
-  EDGE ||--o{ EDGE_CUSTOMIZATION : has
-  EDGE ||--o{ TAG_CUSTOMIZATION  : has
-  TAG  ||--o{ TAG_CUSTOMIZATION  : has
-```
+## Environment
+- `DATABASE_URL` - PostgreSQL connection string
+- `CURRENT_API_BASE_URL` - внешний API для sync
+- `CORS_ALLOWED_ORIGINS` - список origin через запятую
+- `KEYCLOAK_ISSUER_URL` - например `https://sso.greact.ru/realms/toir`
+- `KEYCLOAK_AUDIENCE` - например `drill-cloud-backend`
+- `KEYCLOAK_JWKS_URL` - опционально, если нужен нестандартный JWKS endpoint
 
-## Ключевые эндпоинты
-### Edge
-- `GET /edge` — список блоков
-- `GET /edge/tree` — дерево блоков
-- `GET /edge/:id/children` — дочерние блоки
-- `GET /edge/:id/scoped-current` — текущие данные, отфильтрованные по разрешенным тегам
-- `POST /edge/:id/current-by-tags` — текущие данные по списку тегов (учитывает связь edge↔tag)
-- `GET /edge/widget-configs/all` — все конфигурации виджетов
-- `GET /edge/page/:page/table-config` — таблица по странице
-
-### Tag
-- `GET /tag` — список тегов (с `edge_ids`)
-- `POST /tag` — создание тега с привязкой
-- `PATCH /tag/:id` — обновление тега/привязок
-- `POST /sync/tags?edge=EDGE_ID` — синхронизация тегов с внешним источником
-
-### Current/History
-- `GET /current?edge=EDGE_ID` — текущие значения по edge
-- `GET /current/details?edge=EDGE_ID` — текущие значения с метаданными
-- `POST /ingest` — пакетная загрузка телеметрии
-- `GET /history` — история значений
-
-### Customizations
-- `GET /tag-customization` / `POST /tag-customization`
-- `GET /edge-customization` / `POST /edge-customization`
-
-## Логика привязки тегов к блокам
-Все выдачи «текущих» значений фильтруются через many-to-many связь `edge`↔`tag`.
-Это предотвращает отображение тегов, не принадлежащих выбранному блоку.
-
-## Запуск
+## Run
 ```bash
 npm install
 npm run prisma:generate
-npm run migrate:dev
 npm run start:dev
 ```
 
-## Миграции
+## Build
 ```bash
-npm run migrate:dev:create
-npm run migrate:dev
-npm run migrate:deploy
-```
-
-## Переменные окружения
-```env
-DATABASE_URL="postgresql://user:password@localhost:5432/drillcloud"
-```
-
-## Архитектура
-```mermaid
-flowchart LR
-  Bus -->|ingest| Cloud
-  Admin -->|CRUD| Cloud
-  View -->|read| Cloud
-  Cloud --> DB[(PostgreSQL)]
+npm run build
 ```
