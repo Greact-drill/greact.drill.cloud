@@ -777,6 +777,40 @@ export class EdgeService {
     return result;
   }
 
+  async getDiagramConfigByPage(page: string) {
+    const customization = await this.prisma.edge_customization.findFirst({
+      where: {
+        edge_id: page,
+        key: {
+          in: ['diagramConfig', 'diagramPageConfig'],
+        },
+      },
+      orderBy: {
+        id: 'desc',
+      },
+    });
+
+    if (!customization) {
+      return null;
+    }
+
+    try {
+      const config = JSON.parse(customization.value);
+
+      return {
+        id: customization.id,
+        page,
+        backgroundUrl: config.backgroundUrl || '',
+        backgroundOpacity: config.backgroundOpacity ?? 0.22,
+        backgroundFit: config.backgroundFit || 'contain',
+        regions: Array.isArray(config.regions) ? config.regions : [],
+      };
+    } catch (error) {
+      console.error('Ошибка парсинга diagramConfig:', error);
+      return null;
+    }
+  }
+
   async findTree() {
     const edges = await this.prisma.edge.findMany({
       include: {

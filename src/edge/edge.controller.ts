@@ -99,6 +99,11 @@ export class EdgeController {
     return this.edgeService.getTableConfigsByPage(page);
   }
 
+  @Get('page/:page/diagram-config')
+  async getDiagramConfigByPage(@Param('page') page: string) {
+    return this.edgeService.getDiagramConfigByPage(page);
+  }
+
   @Get('table-configs/all')
   async getAllTableConfigs() {
     return this.edgeService.getAllTableConfigs();
