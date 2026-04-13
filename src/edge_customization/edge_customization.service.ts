@@ -38,14 +38,19 @@ export class EdgeCustomizationService {
   }
 
   async update(edge_id: string, key: string, updateEdgeCustomizationDto: UpdateEdgeCustomizationDto) {
-    return this.prisma.edge_customization.update({
+    return this.prisma.edge_customization.upsert({
       where: { 
         edge_id_key: {
           edge_id: edge_id,
           key: key,
         },
       },
-      data: updateEdgeCustomizationDto,
+      create: {
+        edge_id,
+        key,
+        value: updateEdgeCustomizationDto.value ?? '',
+      },
+      update: updateEdgeCustomizationDto,
     });
   }
 

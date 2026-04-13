@@ -323,10 +323,19 @@ export class EdgeService {
       edgesWithTags.flatMap(edgeWithTags => edgeWithTags.tag_ids).filter(tagId => uniqueTagIds.includes(tagId))
     );
 
+    const currentLookupCache = new Map<string, string>();
+    const lookupEdgeBySource = new Map<string, string>();
+    for (const sourceEdgeId of edgeIds) {
+      const lookupEdgeId = await this.getEdgeIdForCurrentLookup(sourceEdgeId, currentLookupCache);
+      lookupEdgeBySource.set(sourceEdgeId, lookupEdgeId);
+    }
+
+    const currentLookupEdgeIds = Array.from(new Set(Array.from(lookupEdgeBySource.values())));
+
     const [currentRecords, tagRecords] = await Promise.all([
       this.prisma.current.findMany({
         where: {
-          edge: { in: edgeIds },
+          edge: { in: currentLookupEdgeIds },
           tag: { in: Array.from(allowedTagIds) }
         },
         select: {
@@ -343,22 +352,35 @@ export class EdgeService {
     ]);
 
     const tagsMap = new Map(tagRecords.map(tag => [tag.id, tag]));
-    const tags = currentRecords.filter(record => {
-      const allowed = allowedByEdge.get(record.edge);
-      return allowed ? allowed.has(record.tag) : false;
-    }).map(record => {
-      const tagInfo = tagsMap.get(record.tag);
-      return {
-        edge: record.edge,
-        tag: record.tag,
-        value: record.value,
-        name: tagInfo?.name,
-        min: tagInfo?.min,
-        max: tagInfo?.max,
-        comment: tagInfo?.comment,
-        unit_of_measurement: tagInfo?.unit_of_measurement,
-        precision: tagInfo?.precision
-      };
+    const currentValueMap = new Map(
+      currentRecords.map(record => [`${record.edge}::${record.tag}`, record])
+    );
+    const tags = edgeIds.flatMap(sourceEdgeId => {
+      const allowed = allowedByEdge.get(sourceEdgeId);
+      const lookupEdgeId = lookupEdgeBySource.get(sourceEdgeId);
+      if (!allowed || !lookupEdgeId) {
+        return [];
+      }
+
+      return Array.from(allowed).flatMap(tagId => {
+        const record = currentValueMap.get(`${lookupEdgeId}::${tagId}`);
+        if (!record) {
+          return [];
+        }
+
+        const tagInfo = tagsMap.get(tagId);
+        return [{
+          edge: sourceEdgeId,
+          tag: tagId,
+          value: record.value,
+          name: tagInfo?.name,
+          min: tagInfo?.min,
+          max: tagInfo?.max,
+          comment: tagInfo?.comment,
+          unit_of_measurement: tagInfo?.unit_of_measurement,
+          precision: tagInfo?.precision
+        }];
+      });
     });
 
     const tagMeta = tagRecords.map(tag => ({
@@ -481,6 +503,24 @@ export class EdgeService {
     const result = edge?.parent_id ?? edgeId;
     cache?.set(edgeId, result);
     return result;
+  }
+
+  private getDiagramPageOwnerEdgeId(page: string): string {
+    if (page.startsWith('MAIN_')) {
+      return page.slice('MAIN_'.length);
+    }
+    if (page.startsWith('BYPASS_')) {
+      return page.slice('BYPASS_'.length);
+    }
+    if (page.startsWith('ACCIDENT_')) {
+      return page.slice('ACCIDENT_'.length);
+    }
+
+    return page;
+  }
+
+  private getDiagramPageCustomizationKey(page: string): string {
+    return `diagramPageConfig:${page}`;
   }
 
   async getWidgetConfigs(edgeId: string) {
@@ -778,12 +818,21 @@ export class EdgeService {
   }
 
   async getDiagramConfigByPage(page: string) {
+    const ownerEdgeId = this.getDiagramPageOwnerEdgeId(page);
     const customization = await this.prisma.edge_customization.findFirst({
       where: {
-        edge_id: page,
-        key: {
-          in: ['diagramConfig', 'diagramPageConfig'],
-        },
+        OR: [
+          {
+            edge_id: ownerEdgeId,
+            key: this.getDiagramPageCustomizationKey(page),
+          },
+          {
+            edge_id: page,
+            key: {
+              in: ['diagramConfig', 'diagramPageConfig'],
+            },
+          },
+        ],
       },
       orderBy: {
         id: 'desc',
@@ -800,9 +849,13 @@ export class EdgeService {
       return {
         id: customization.id,
         page,
+        ownerEdgeId,
         backgroundUrl: config.backgroundUrl || '',
         backgroundOpacity: config.backgroundOpacity ?? 0.22,
         backgroundFit: config.backgroundFit || 'contain',
+        viewport: config.viewport ?? null,
+        items: Array.isArray(config.items) ? config.items : [],
+        edges: Array.isArray(config.edges) ? config.edges : [],
         regions: Array.isArray(config.regions) ? config.regions : [],
       };
     } catch (error) {
