@@ -13,7 +13,7 @@ export class HistoryController {
   @Header('Pragma', 'no-cache')
   @Header('Expires', '0')
   findLatestByEdge(@Query() query: GetHistoryDto) {
-    return this.historyService.findLatestByEdge(query.edge);
+    return this.historyService.findHistoryByEdge(query.edge, query);
   }
 
   @Get('details')
@@ -21,6 +21,6 @@ export class HistoryController {
   @Header('Pragma', 'no-cache')
   @Header('Expires', '0')
   findLatestByEdgeWithTags(@Query() query: GetHistoryDto) {
-    return this.historyService.findLatestByEdgeWithTags(query.edge);
+    return this.historyService.findHistoryByEdgeWithTags(query.edge, query);
   }
 }
