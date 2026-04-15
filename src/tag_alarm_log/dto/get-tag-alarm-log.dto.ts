@@ -10,6 +10,22 @@ export class GetTagAlarmLogDto {
   @IsOptional()
   journal_type?: 'indicator' | 'alarm';
 
+  @IsString()
+  @IsOptional()
+  tag_name?: string;
+
+  @IsString()
+  @IsOptional()
+  alarm_type?: 'min' | 'max';
+
+  @IsString()
+  @IsOptional()
+  from?: string;
+
+  @IsString()
+  @IsOptional()
+  to?: string;
+
   @IsOptional()
   @Transform(({ value }) => parseInt(value, 10))
   @IsNumber()

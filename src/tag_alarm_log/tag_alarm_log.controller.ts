@@ -25,12 +25,14 @@ export class TagAlarmLogController {
     @Query('tag_name') tag_name?: string,
     @Query('alarm_type') alarm_type?: string,
     @Query('journal_type') journal_type?: 'indicator' | 'alarm',
+    @Query('from') from?: string,
+    @Query('to') to?: string,
   ) {
     return this.service.findByEdge(
       edgeId,
       limit ? parseInt(limit, 10) : 100,
       offset ? parseInt(offset, 10) : 0,
-      { tag_name, alarm_type, journal_type },
+      { tag_name, alarm_type, journal_type, from, to },
     );
   }
 

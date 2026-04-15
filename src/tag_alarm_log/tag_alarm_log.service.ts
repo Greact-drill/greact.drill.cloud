@@ -1,11 +1,71 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { CreateTagAlarmLogDto } from './dto/create-tag-alarm-log.dto';
 import type { GetTagAlarmLogDto } from './dto/get-tag-alarm-log.dto';
 
+type TagAlarmLogFilters = {
+  tag_name?: string;
+  alarm_type?: string;
+  journal_type?: 'indicator' | 'alarm';
+  from?: string;
+  to?: string;
+};
+
 @Injectable()
 export class TagAlarmLogService {
   constructor(private prisma: PrismaService) {}
+
+  private parseDateRange(filters?: Pick<TagAlarmLogFilters, 'from' | 'to'>) {
+    const from = filters?.from ? new Date(filters.from) : undefined;
+    const to = filters?.to ? new Date(filters.to) : undefined;
+
+    if (from && Number.isNaN(from.getTime())) {
+      throw new BadRequestException('Параметр from содержит некорректную дату');
+    }
+
+    if (to && Number.isNaN(to.getTime())) {
+      throw new BadRequestException('Параметр to содержит некорректную дату');
+    }
+
+    if (from && to && from > to) {
+      throw new BadRequestException('Параметр from не может быть больше to');
+    }
+
+    return { from, to };
+  }
+
+  private buildWhere(edge_id?: string, filters?: TagAlarmLogFilters) {
+    const where: Record<string, unknown> = {};
+
+    if (edge_id) {
+      where.edge_id = edge_id;
+    }
+
+    if (filters?.journal_type === 'indicator' || filters?.journal_type === 'alarm') {
+      where.journal_type = filters.journal_type;
+    }
+
+    if (filters?.tag_name?.trim()) {
+      where.tag_name = {
+        contains: filters.tag_name.trim(),
+        mode: 'insensitive',
+      };
+    }
+
+    if (filters?.alarm_type === 'min' || filters?.alarm_type === 'max') {
+      where.alarm_type = filters.alarm_type;
+    }
+
+    const { from, to } = this.parseDateRange(filters);
+    if (from || to) {
+      where.timestamp = {
+        ...(from ? { gte: from } : {}),
+        ...(to ? { lte: to } : {}),
+      };
+    }
+
+    return where;
+  }
 
   async create(dto: CreateTagAlarmLogDto) {
     return this.prisma.tagAlarmLog.create({
@@ -25,12 +85,8 @@ export class TagAlarmLogService {
   }
 
   async findAll(query: GetTagAlarmLogDto) {
-    const { edge_id, journal_type, limit = 100, offset = 0 } = query;
-
-    const where = {
-      ...(edge_id ? { edge_id } : {}),
-      ...(journal_type ? { journal_type } : {}),
-    };
+    const { edge_id, tag_name, alarm_type, journal_type, from, to, limit = 100, offset = 0 } = query;
+    const where = this.buildWhere(edge_id, { tag_name, alarm_type, journal_type, from, to });
 
     const [items, total] = await Promise.all([
       this.prisma.tagAlarmLog.findMany({
@@ -49,21 +105,9 @@ export class TagAlarmLogService {
     edge_id: string,
     limit = 100,
     offset = 0,
-    filters?: { tag_name?: string; alarm_type?: string; journal_type?: 'indicator' | 'alarm' }
+    filters?: TagAlarmLogFilters
   ) {
-    const where: Record<string, unknown> = { edge_id };
-    if (filters?.journal_type === 'indicator' || filters?.journal_type === 'alarm') {
-      where.journal_type = filters.journal_type;
-    }
-    if (filters?.tag_name?.trim()) {
-      (where as { tag_name?: { contains: string; mode: string } }).tag_name = {
-        contains: filters.tag_name.trim(),
-        mode: 'insensitive',
-      };
-    }
-    if (filters?.alarm_type === 'min' || filters?.alarm_type === 'max') {
-      (where as { alarm_type?: string }).alarm_type = filters.alarm_type;
-    }
+    const where = this.buildWhere(edge_id, filters);
 
     const [items, total] = await Promise.all([
       this.prisma.tagAlarmLog.findMany({
