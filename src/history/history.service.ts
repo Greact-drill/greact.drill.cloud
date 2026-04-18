@@ -10,6 +10,10 @@ type HistoryPoint = {
 };
 
 type HistoryGrouped = Record<string, HistoryPoint[]>;
+type HistoryBucketCandidatePoint = HistoryPoint & {
+  tag: string;
+  bucketId: bigint | number;
+};
 
 type CustomizationItem = {
   key: string;
@@ -150,6 +154,70 @@ export class HistoryService {
     }, {});
   }
 
+  private normalizeBucketRows(rows: HistoryBucketCandidatePoint[]): HistoryGrouped {
+    const groupedHistory: HistoryGrouped = {};
+    const sortedRows = [...rows].sort((left, right) => {
+      const byTag = left.tag.localeCompare(right.tag);
+      if (byTag !== 0) {
+        return byTag;
+      }
+
+      if (left.bucketId !== right.bucketId) {
+        return left.bucketId < right.bucketId ? -1 : 1;
+      }
+
+      const byTimestamp = left.timestamp.getTime() - right.timestamp.getTime();
+      if (byTimestamp !== 0) {
+        return byTimestamp;
+      }
+
+      return left.value - right.value;
+    });
+
+    let currentTag: string | null = null;
+    let currentBucketId: bigint | number | null = null;
+    let currentBucketRows: HistoryBucketCandidatePoint[] = [];
+
+    const flushBucket = () => {
+      if (!currentTag || currentBucketRows.length === 0) {
+        return;
+      }
+
+      if (!groupedHistory[currentTag]) {
+        groupedHistory[currentTag] = [];
+      }
+
+      let previousBucketValue: number | null = null;
+
+      for (const row of currentBucketRows) {
+        const isSameValueInSameBucket = previousBucketValue !== null && previousBucketValue === row.value;
+
+        if (!isSameValueInSameBucket) {
+          groupedHistory[currentTag].push({
+            timestamp: row.timestamp,
+            value: row.value,
+          });
+          previousBucketValue = row.value;
+        }
+      }
+    };
+
+    for (const row of sortedRows) {
+      if (row.tag !== currentTag || row.bucketId !== currentBucketId) {
+        flushBucket();
+        currentTag = row.tag;
+        currentBucketId = row.bucketId;
+        currentBucketRows = [];
+      }
+
+      currentBucketRows.push(row);
+    }
+
+    flushBucket();
+
+    return groupedHistory;
+  }
+
   private getTargetPoints(options: HistoryQueryOptions): number {
     return Math.min(Math.max(options.targetPoints ?? DEFAULT_TARGET_POINTS, 100), 5000);
   }
@@ -267,21 +335,16 @@ export class HistoryService {
   }
 
   private async findByEdgeInBuckets(edge: string, from: Date, to: Date, resolutionSeconds: number): Promise<HistoryGrouped> {
-    type HistoryBucketResult = {
-      tag: string;
-      timestamp: Date;
-      value: number;
-    };
-
     const bucketMs = Math.max(resolutionSeconds * 1000, 1000);
+    const fromMs = from.getTime();
 
-    const rows = await this.prisma.$queryRaw<HistoryBucketResult[]>`
+    const rows = await this.prisma.$queryRaw<HistoryBucketCandidatePoint[]>`
       WITH ranged_records AS (
         SELECT
           tag,
           timestamp,
           value,
-          FLOOR(EXTRACT(EPOCH FROM timestamp) * 1000 / ${bucketMs})::bigint AS bucket_id
+          FLOOR((EXTRACT(EPOCH FROM timestamp) * 1000 - ${fromMs}) / ${bucketMs})::bigint AS bucket_id
         FROM history
         WHERE edge = ${edge}
           AND timestamp >= ${from}
@@ -300,23 +363,31 @@ export class HistoryService {
         FROM ranged_records
       ),
       picked_records AS (
-        SELECT tag, timestamp, value FROM ranked_records WHERE rn_first = 1
-        UNION
-        SELECT tag, timestamp, value FROM ranked_records WHERE rn_min = 1
-        UNION
-        SELECT tag, timestamp, value FROM ranked_records WHERE rn_max = 1
-        UNION
-        SELECT tag, timestamp, value FROM ranked_records WHERE rn_last = 1
+        SELECT DISTINCT
+          tag,
+          timestamp,
+          value,
+          bucket_id
+        FROM (
+          SELECT tag, timestamp, value, bucket_id FROM ranked_records WHERE rn_first = 1
+          UNION ALL
+          SELECT tag, timestamp, value, bucket_id FROM ranked_records WHERE rn_min = 1
+          UNION ALL
+          SELECT tag, timestamp, value, bucket_id FROM ranked_records WHERE rn_max = 1
+          UNION ALL
+          SELECT tag, timestamp, value, bucket_id FROM ranked_records WHERE rn_last = 1
+        ) AS bucket_points
       )
       SELECT
         tag,
         timestamp,
-        value
+        value,
+        bucket_id AS "bucketId"
       FROM picked_records
-      ORDER BY tag ASC, timestamp ASC
+      ORDER BY tag ASC, "bucketId" ASC, timestamp ASC, value ASC
     `;
 
-    return this.groupHistoryRows(rows);
+    return this.normalizeBucketRows(rows);
   }
 
   private async findLatestByEdge(edge: string, limit: number = 20): Promise<HistoryGrouped> {
