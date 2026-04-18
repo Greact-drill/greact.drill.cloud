@@ -1,12 +1,10 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
-import { ScheduleModule } from '@nestjs/schedule';
 import { AlarmWidgetLogModule } from './alarm_widget_log/alarm_widget_log.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { KeycloakAuthGuard } from './auth/keycloak-auth.guard';
-import { CleanupService } from './cleanup/cleanup.service';
 import { CurrentModule } from './current/current.module';
 import { EdgeModule } from './edge/edge.module';
 import { EdgeCustomizationModule } from './edge_customization/edge_customization.module';
@@ -22,7 +20,6 @@ import { TagCustomizationModule } from './tag_customization/tag_customization.mo
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-    ScheduleModule.forRoot(),
     HistoryModule,
     CurrentModule,
     IngestModule,
@@ -36,7 +33,6 @@ import { TagCustomizationModule } from './tag_customization/tag_customization.mo
   controllers: [AppController],
   providers: [
     AppService,
-    CleanupService,
     PrismaService,
     {
       provide: APP_GUARD,
