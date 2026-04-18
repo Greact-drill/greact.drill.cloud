@@ -49,7 +49,7 @@ services:
         aliases:
           - cloud-db-${BRANCH}
           - cloud-database-container-${BRANCH}
-      proxy:
+      pgadmin:
         aliases:
           - cloud-db-${BRANCH}
           - cloud-database-container-${BRANCH}
@@ -67,6 +67,8 @@ volumes:
 
 networks:
   proxy:
+    external: true
+  pgadmin:
     external: true
   internal:
     name: greact-drill-cloud-${BRANCH}-internal
