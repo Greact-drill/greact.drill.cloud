@@ -49,11 +49,6 @@ services:
         aliases:
           - cloud-db-${BRANCH}
           - cloud-database-container-${BRANCH}
-      pgadmin:
-        aliases:
-          - cloud-db-${BRANCH}
-          - cloud-database-container-${BRANCH}
-
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
@@ -67,8 +62,6 @@ volumes:
 
 networks:
   proxy:
-    external: true
-  pgadmin:
     external: true
   internal:
     name: greact-drill-cloud-${BRANCH}-internal
