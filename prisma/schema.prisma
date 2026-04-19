@@ -29,6 +29,7 @@ model History {
   @@index([tag])
   @@index([edge, tag])
   @@index([edge, timestamp])
+  @@index([edge, tag, timestamp])
   @@map("history")
   @@schema("public")
 }

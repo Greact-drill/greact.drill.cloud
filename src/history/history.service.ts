@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { Prisma } from '../../generated/prisma';
 import { CreateHistoryDto } from './dto/create-history.dto';
 import { UpdateHistoryDto } from './dto/update-history.dto';
 import { GetHistoryDto, type HistoryAggregationMode } from './dto/get-history.dto';
@@ -29,11 +30,14 @@ type HistoryGroupedWithTag = {
   unit_of_measurement?: string;
   precision?: number | null;
   tag: string;
-  history: HistoryPoint[];
+  history: HistoryPoint[] | Array<[number, number]>;
   customization?: CustomizationItem[];
 };
 
-type HistoryQueryOptions = Pick<GetHistoryDto, 'limit' | 'from' | 'to' | 'aggregation' | 'targetPoints' | 'resolutionSeconds'>;
+type HistoryQueryOptions = Pick<
+  GetHistoryDto,
+  'limit' | 'from' | 'to' | 'aggregation' | 'targetPoints' | 'resolutionSeconds' | 'tags' | 'compact'
+>;
 const MAX_RANGE_POINTS_PER_TAG = 1500;
 const DEFAULT_TARGET_POINTS = 1200;
 const BUCKET_POINT_MULTIPLIER = 4;
@@ -104,16 +108,32 @@ export class HistoryService {
   }
 
   async findHistoryByEdge(edge: string, options: HistoryQueryOptions = {}): Promise<HistoryGrouped> {
+    if (options.tags && options.tags.length === 0) {
+      return {};
+    }
+
     if (this.hasExplicitRange(options)) {
       return this.findByEdgeInRange(edge, options);
     }
 
-    return this.findLatestByEdge(edge, options.limit ?? 20);
+    return this.findLatestByEdge(edge, options.limit ?? 20, options.tags);
   }
 
   async findHistoryByEdgeWithTags(edge: string, options: HistoryQueryOptions = {}): Promise<HistoryGroupedWithTag[]> {
+    if (options.tags && options.tags.length === 0) {
+      return [];
+    }
+
     const groupedHistory = await this.findHistoryByEdge(edge, options);
-    return this.attachTagMetadata(edge, groupedHistory);
+    return this.attachTagMetadata(edge, groupedHistory, Boolean(options.compact));
+  }
+
+  private tagInFilterSql(tags: string[] | undefined): Prisma.Sql {
+    if (!tags?.length) {
+      return Prisma.empty;
+    }
+
+    return Prisma.sql`AND tag IN (${Prisma.join(tags)})`;
   }
 
   private hasExplicitRange(options: HistoryQueryOptions): boolean {
@@ -227,10 +247,11 @@ export class HistoryService {
     return PRETTY_BUCKETS_IN_SECONDS.find((value) => value >= rawSeconds) ?? PRETTY_BUCKETS_IN_SECONDS[PRETTY_BUCKETS_IN_SECONDS.length - 1];
   }
 
-  private async getRangeStats(edge: string, from: Date, to: Date) {
+  private async getRangeStats(edge: string, from: Date, to: Date, tags?: string[]) {
     const stats = await this.prisma.history.aggregate({
       where: {
         edge,
+        ...(tags?.length ? { tag: { in: tags } } : {}),
         timestamp: {
           gte: from,
           lte: to,
@@ -277,7 +298,7 @@ export class HistoryService {
       };
     }
 
-    const stats = await this.getRangeStats(edge, fromValue, toValue);
+    const stats = await this.getRangeStats(edge, fromValue, toValue, options.tags);
     const shouldUseBucket = stats.totalPoints > Math.max(targetPoints, RANGE_COUNT_FOR_BUCKETS);
 
     return {
@@ -293,7 +314,7 @@ export class HistoryService {
     const strategy = await this.resolveRangeReadStrategy(edge, options);
 
     if (strategy.mode === 'bucket') {
-      return this.findByEdgeInBuckets(edge, strategy.from, strategy.to, strategy.resolutionSeconds);
+      return this.findByEdgeInBuckets(edge, strategy.from, strategy.to, strategy.resolutionSeconds, options.tags);
     }
 
     type HistoryRangeResult = {
@@ -302,7 +323,8 @@ export class HistoryService {
       value: number;
     };
 
-    const rows = await this.prisma.$queryRaw<HistoryRangeResult[]>`
+    const tagFilter = this.tagInFilterSql(options.tags);
+    const rows = await this.prisma.$queryRaw<HistoryRangeResult[]>(Prisma.sql`
       WITH ranged_records AS (
         SELECT
           tag,
@@ -317,6 +339,7 @@ export class HistoryService {
           ) AS total
         FROM history
         WHERE edge = ${edge}
+          ${tagFilter}
           AND timestamp >= ${strategy.from}
           AND timestamp <= ${strategy.to}
       )
@@ -329,16 +352,23 @@ export class HistoryService {
          OR MOD(seq - 1, GREATEST(CEIL(total::numeric / ${Math.max(strategy.targetPoints, MAX_RANGE_POINTS_PER_TAG)})::int, 1)) = 0
          OR seq = total
       ORDER BY tag ASC, timestamp ASC
-    `;
+    `);
 
     return this.groupHistoryRows(rows);
   }
 
-  private async findByEdgeInBuckets(edge: string, from: Date, to: Date, resolutionSeconds: number): Promise<HistoryGrouped> {
+  private async findByEdgeInBuckets(
+    edge: string,
+    from: Date,
+    to: Date,
+    resolutionSeconds: number,
+    tags?: string[],
+  ): Promise<HistoryGrouped> {
     const bucketMs = Math.max(resolutionSeconds * 1000, 1000);
     const fromMs = from.getTime();
+    const tagFilter = this.tagInFilterSql(tags);
 
-    const rows = await this.prisma.$queryRaw<HistoryBucketCandidatePoint[]>`
+    const rows = await this.prisma.$queryRaw<HistoryBucketCandidatePoint[]>(Prisma.sql`
       WITH ranged_records AS (
         SELECT
           tag,
@@ -347,6 +377,7 @@ export class HistoryService {
           FLOOR((EXTRACT(EPOCH FROM timestamp) * 1000 - ${fromMs}) / ${bucketMs})::bigint AS bucket_id
         FROM history
         WHERE edge = ${edge}
+          ${tagFilter}
           AND timestamp >= ${from}
           AND timestamp <= ${to}
       ),
@@ -385,19 +416,20 @@ export class HistoryService {
         bucket_id AS "bucketId"
       FROM picked_records
       ORDER BY tag ASC, "bucketId" ASC, timestamp ASC, value ASC
-    `;
+    `);
 
     return this.normalizeBucketRows(rows);
   }
 
-  private async findLatestByEdge(edge: string, limit: number = 20): Promise<HistoryGrouped> {
+  private async findLatestByEdge(edge: string, limit: number = 20, tags?: string[]): Promise<HistoryGrouped> {
     type HistoryResult = {
       tag: string;
       timestamp: Date;
       value: number;
     };
 
-    const result = await this.prisma.$queryRaw<HistoryResult[]>`
+    const tagFilter = this.tagInFilterSql(tags);
+    const result = await this.prisma.$queryRaw<HistoryResult[]>(Prisma.sql`
       WITH latest_records AS (
         SELECT
           edge,
@@ -410,6 +442,7 @@ export class HistoryService {
           ) as rn
         FROM history
         WHERE edge = ${edge}
+          ${tagFilter}
       )
       SELECT
         tag,
@@ -418,12 +451,16 @@ export class HistoryService {
       FROM latest_records
       WHERE rn <= ${limit}
       ORDER BY tag, timestamp ASC
-    `;
+    `);
 
     return this.groupHistoryRows(result);
   }
 
-  private async attachTagMetadata(edge: string, groupedHistory: HistoryGrouped): Promise<HistoryGroupedWithTag[]> {
+  private async attachTagMetadata(
+    edge: string,
+    groupedHistory: HistoryGrouped,
+    compact: boolean,
+  ): Promise<HistoryGroupedWithTag[]> {
     const tagIds = Object.keys(groupedHistory);
     if (tagIds.length === 0) {
       return [];
@@ -466,6 +503,8 @@ export class HistoryService {
       .map((tagId) => {
         const tagInfo = tagsMap.get(tagId);
 
+        const points = groupedHistory[tagId] ?? [];
+
         return {
           tag: tagId,
           name: tagInfo?.name || tagId,
@@ -475,7 +514,7 @@ export class HistoryService {
           comment: tagInfo?.comment,
           unit_of_measurement: tagInfo?.unit_of_measurement,
           precision: tagInfo?.precision,
-          history: groupedHistory[tagId] ?? [],
+          history: compact ? points.map((p) => [p.timestamp.getTime(), p.value] as [number, number]) : points,
           customization: customizationMap.get(tagId) ?? [],
         };
       })

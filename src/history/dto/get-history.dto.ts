@@ -1,5 +1,17 @@
 import { Transform } from 'class-transformer';
-import { IsDateString, IsIn, IsNotEmpty, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsBoolean,
+  IsDateString,
+  IsIn,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+} from 'class-validator';
 
 export const HISTORY_AGGREGATION_MODES = ['auto', 'raw', 'bucket'] as const;
 export type HistoryAggregationMode = typeof HISTORY_AGGREGATION_MODES[number];
@@ -42,4 +54,34 @@ export class GetHistoryDto {
   @Min(1, { message: 'resolutionSeconds must be greater than 0' })
   @Max(31536000, { message: 'resolutionSeconds is too large' })
   resolutionSeconds?: number;
+
+  /** Comma-separated tag ids; when set, only these tags are returned (reduces payload and DB work). */
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value == null || value === '') {
+      return undefined;
+    }
+    if (Array.isArray(value)) {
+      return value
+        .flatMap((item) => String(item).split(','))
+        .map((tag) => tag.trim())
+        .filter(Boolean)
+        .slice(0, 500);
+    }
+    return String(value)
+      .split(',')
+      .map((tag) => tag.trim())
+      .filter(Boolean)
+      .slice(0, 500);
+  })
+  @IsArray()
+  @ArrayMaxSize(500)
+  @IsString({ each: true })
+  tags?: string[];
+
+  /** When true, each history point is `[unixMs, value]` instead of `{ timestamp: ISO, value }`. */
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === '1' || value === 'true')
+  @IsBoolean()
+  compact?: boolean;
 }
