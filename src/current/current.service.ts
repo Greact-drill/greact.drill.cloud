@@ -5,7 +5,8 @@ import { PrismaService } from '../prisma.service';
 
 type CurrentValueWithTag = {
   tag: string;
-  value: number;
+  /** null if there is no row in `current` for this tag on the edge */
+  value: number | null;
   name?: string;
   tag_group?: string | null;
   min?: number;
@@ -127,12 +128,12 @@ export class CurrentService {
     return result;
   }
 
-    async findCurrentByEdgeWithTags(edge: string): Promise<CurrentValueWithTag[]> {
+  async findCurrentByEdgeWithTags(edge: string): Promise<CurrentValueWithTag[]> {
     const edgeRecord = await (this.prisma.edge as any).findUnique({
       where: { id: edge },
       select: {
-        tag_ids: true
-      }
+        tag_ids: true,
+      },
     }) as { tag_ids?: string[] } | null;
     const allowedTagIds = edgeRecord?.tag_ids ?? [];
     if (!allowedTagIds.length) {
@@ -142,56 +143,54 @@ export class CurrentService {
     const currentRecords = await this.prisma.current.findMany({
       where: {
         edge,
-        tag: { in: allowedTagIds }
+        tag: { in: allowedTagIds },
       },
       select: {
         tag: true,
         value: true,
-      }
+      },
     });
+    const currentByTag = new Map(currentRecords.map((r) => [r.tag, r.value]));
 
-    // Получаем информацию о тегах
-    const tagIds = currentRecords.map(record => record.tag);
     const tagRecords = await this.prisma.tag.findMany({
       where: {
-        id: { in: tagIds },
+        id: { in: allowedTagIds },
       },
     });
 
     const customizationRecords = await this.prisma.tag_customization.findMany({
       where: {
         edge_id: edge,
-        tag_id: { in: tagIds },
+        tag_id: { in: allowedTagIds },
       },
       select: {
         tag_id: true,
         key: true,
         value: true,
-      }
+      },
     });
-    
-    // Создаем Map для быстрого доступа к тегам
-    const tagsMap = new Map(tagRecords.map(tag => [tag.id, tag]));
-    
+
+    const tagsMap = new Map(tagRecords.map((tag) => [tag.id, tag]));
+
     const customizationMap = new Map<string, CustomizationItem[]>();
     for (const record of customizationRecords) {
-        if (!customizationMap.has(record.tag_id)) {
-            customizationMap.set(record.tag_id, []);
-        }
-        customizationMap.get(record.tag_id)?.push({
-            key: record.key,
-            value: record.value,
-        });
+      if (!customizationMap.has(record.tag_id)) {
+        customizationMap.set(record.tag_id, []);
+      }
+      customizationMap.get(record.tag_id)?.push({
+        key: record.key,
+        value: record.value,
+      });
     }
 
-    // Обогащаем текущие записи
-    const result: CurrentValueWithTag[] = currentRecords.map(record => {
-    const tagInfo = tagsMap.get(record.tag);
-    const customInfo = customizationMap.get(record.tag);
-      
-    return {
-        tag: record.tag,
-        value: record.value,
+    // Одна строка на каждый tag_id буровой (как в edge.tag_ids), не только те, что есть в `current`
+    return allowedTagIds.map((tagId) => {
+      const tagInfo = tagsMap.get(tagId);
+      const value = currentByTag.get(tagId);
+
+      return {
+        tag: tagId,
+        value: value ?? null,
         name: tagInfo?.name,
         tag_group: tagInfo?.tag_group ?? null,
         min: tagInfo?.min,
@@ -199,10 +198,8 @@ export class CurrentService {
         comment: tagInfo?.comment,
         unit_of_measurement: tagInfo?.unit_of_measurement,
         precision: tagInfo?.precision ?? undefined,
-        customization: customInfo,
+        customization: customizationMap.get(tagId) ?? [],
       };
     });
-
-    return result;
   }
 }
